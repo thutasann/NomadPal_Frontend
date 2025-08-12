@@ -1,4 +1,5 @@
-// src/App.jsx
+// @ts-check
+import React from "react";
 import { Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import CityCard from "./components/CityCard";
@@ -11,9 +12,21 @@ import Footer from "./components/Footer";
 import Profile from "./pages/Profile";
 import CityDetail from "./pages/CityDetail";
 import JobDetail from "./pages/JobDetail.jsx";
+import { useEffect } from "react";
+import healthService from "./services/health.service.js";
 
+let isHealthChecked = false;
 
 export default function App() {
+  useEffect(() => {
+    if (!isHealthChecked) {
+      healthService.checkHealth().then((response) => {
+        console.log(response.data);
+      });
+      isHealthChecked = true;
+    }
+  }, []);
+
   return (
     <div className="app-layout">
       <Navbar />
