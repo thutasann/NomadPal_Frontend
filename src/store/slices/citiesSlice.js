@@ -3,22 +3,25 @@ import { createSlice } from '@reduxjs/toolkit';
 const initialState = {
   cities: [],
   currentCity: null,
-  filteredCities: [],
   filters: {
-    budget_min: null,
-    budget_max: null,
-    climate: null,
-    internet_speed: null,
-    lifestyle_tags: [],
-    country: null,
+    country: '',
+    climate: '',
+    min_cost: null,
+    max_cost: null,
+    min_safety: null,
+    sort_by: 'name',
+    sort_order: 'ASC'
   },
   pagination: {
-    page: 1,
-    limit: 12,
-    total: 0,
+    current_page: 1,
+    total_pages: 1,
+    total_items: 0,
+    items_per_page: 20,
+    has_next_page: false,
+    has_prev_page: false
   },
   isLoading: false,
-  error: null,
+  error: null
 };
 
 const citiesSlice = createSlice({
@@ -35,148 +38,85 @@ const citiesSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
-    
-    // Set all cities
     setCities: (state, action) => {
       state.cities = action.payload;
-      state.filteredCities = action.payload;
-      state.pagination.total = action.payload.length;
       state.isLoading = false;
       state.error = null;
     },
-    
-    // Set current city (for detail view)
+    addCities: (state, action) => {
+      // Add new cities to existing ones (for pagination)
+      const newCities = action.payload;
+      const existingIds = new Set(state.cities.map(city => city.id));
+      
+      // Only add cities that don't already exist
+      const uniqueNewCities = newCities.filter(city => !existingIds.has(city.id));
+      state.cities = [...state.cities, ...uniqueNewCities];
+      state.isLoading = false;
+      state.error = null;
+    },
     setCurrentCity: (state, action) => {
       state.currentCity = action.payload;
     },
-    
-    // Add a single city
     addCity: (state, action) => {
-      const city = action.payload;
-      const existingIndex = state.cities.findIndex(c => c.id === city.id);
-      if (existingIndex >= 0) {
-        state.cities[existingIndex] = city;
-      } else {
-        state.cities.push(city);
-      }
+      state.cities.push(action.payload);
     },
-    
-    // Update city data
     updateCity: (state, action) => {
       const { id, updates } = action.payload;
-      const cityIndex = state.cities.findIndex(c => c.id === id);
-      if (cityIndex >= 0) {
+      const cityIndex = state.cities.findIndex(city => city.id === id);
+      if (cityIndex !== -1) {
         state.cities[cityIndex] = { ...state.cities[cityIndex], ...updates };
       }
     },
-    
-    // Remove city
     removeCity: (state, action) => {
-      const cityId = action.payload;
-      state.cities = state.cities.filter(c => c.id !== cityId);
-      state.filteredCities = state.filteredCities.filter(c => c.id !== cityId);
+      state.cities = state.cities.filter(city => city.id !== action.payload);
     },
-    
-    // Set filters
     setFilters: (state, action) => {
       state.filters = { ...state.filters, ...action.payload };
-      state.pagination.page = 1; // Reset to first page when filters change
     },
-    
-    // Clear all filters
     clearFilters: (state) => {
       state.filters = initialState.filters;
-      state.filteredCities = state.cities;
-      state.pagination.page = 1;
     },
-    
-    // Apply filters to cities
     applyFilters: (state) => {
-      let filtered = [...state.cities];
-      
-      // Budget filter
-      if (state.filters.budget_min !== null) {
-        filtered = filtered.filter(city => 
-          city.monthly_cost_usd >= state.filters.budget_min
-        );
-      }
-      if (state.filters.budget_max !== null) {
-        filtered = filtered.filter(city => 
-          city.monthly_cost_usd <= state.filters.budget_max
-        );
-      }
-      
-      // Climate filter
-      if (state.filters.climate) {
-        filtered = filtered.filter(city => 
-          city.climate_summary === state.filters.climate
-        );
-      }
-      
-      // Internet speed filter
-      if (state.filters.internet_speed) {
-        // This would need to be implemented based on your internet speed data
-        // For now, we'll skip this filter
-      }
-      
-      // Lifestyle tags filter
-      if (state.filters.lifestyle_tags.length > 0) {
-        filtered = filtered.filter(city => {
-          if (!city.lifestyle_tags) return false;
-          const cityTags = JSON.parse(city.lifestyle_tags);
-          return state.filters.lifestyle_tags.some(tag => 
-            cityTags.includes(tag)
-          );
-        });
-      }
-      
-      // Country filter
-      if (state.filters.country) {
-        filtered = filtered.filter(city => 
-          city.country === state.filters.country
-        );
-      }
-      
-      state.filteredCities = filtered;
-      state.pagination.total = filtered.length;
-      state.pagination.page = 1;
+      // Filter logic can be implemented here if needed
+      state.isLoading = false;
     },
-    
-    // Pagination
     setPage: (state, action) => {
-      state.pagination.page = action.payload;
+      state.pagination.current_page = action.payload;
     },
     setLimit: (state, action) => {
-      state.pagination.limit = action.payload;
-      state.pagination.page = 1;
+      state.pagination.items_per_page = action.payload;
     },
-    
-    // Clear cities data
+    setPagination: (state, action) => {
+      state.pagination = { ...state.pagination, ...action.payload };
+    },
     clearCities: (state) => {
       state.cities = [];
-      state.filteredCities = [];
       state.currentCity = null;
-      state.pagination.total = 0;
-      state.pagination.page = 1;
-    },
-  },
+      state.pagination = initialState.pagination;
+      state.filters = initialState.filters;
+      state.isLoading = false;
+      state.error = null;
+    }
+  }
 });
 
-export const {
-  setLoading,
-  setError,
-  clearError,
-  setCities,
-  setCurrentCity,
-  addCity,
-  updateCity,
-  removeCity,
-  setFilters,
-  clearFilters,
-  applyFilters,
-  setPage,
-  setLimit,
-  clearCities,
+export const { 
+  setLoading, 
+  setError, 
+  clearError, 
+  setCities, 
+  addCities,
+  setCurrentCity, 
+  addCity, 
+  updateCity, 
+  removeCity, 
+  setFilters, 
+  clearFilters, 
+  applyFilters, 
+  setPage, 
+  setLimit, 
+  setPagination,
+  clearCities 
 } = citiesSlice.actions;
 
 export default citiesSlice.reducer;
