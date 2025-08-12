@@ -1,5 +1,7 @@
-// src/pages/Register.jsx
 import { useMemo, useState } from "react";
+import { toast } from "react-hot-toast";
+import authService from "../services/auth.service";
+import { registerSchema } from "../validations/auth.validation";
 
 
 const CLIMATES = ["Warm", "Temperate", "Cold"];
@@ -42,7 +44,7 @@ const TIMEZONE_OPTIONS = [
     "UTC+12:00",
     "UTC+13:00",
     "UTC+14:00",
-  ];
+];
 
 export default function Register() {
   const [form, setForm] = useState({
@@ -51,6 +53,8 @@ export default function Register() {
     displayName: "",
     language: "",
     origin: "",
+    passport: "",
+    timezone: "",
     jobTitle: "",
     climate: "Temperate",
     net: "Medium",
@@ -114,12 +118,62 @@ export default function Register() {
 
   function submit(e) {
     e.preventDefault();
-    if (!form.agreeTos) {
-      alert("Please agree to the Privacy Policy & Terms to continue.");
-      return;
+    
+    try {
+      // Validate form data with Zod
+      const validatedData = registerSchema.parse(form);
+      
+      // Prepare data for API
+      const userData = {
+        email: validatedData.email,
+        password: validatedData.password,
+        display_name: validatedData.displayName || null,
+        preferred_language: validatedData.language || null,
+        country_city: validatedData.origin || null,
+        timezone: validatedData.timezone || null,
+        passport: validatedData.passport || null,
+        job_title: validatedData.jobTitle || null,
+        monthly_budget_min_usd: validatedData.budgetMin,
+        monthly_budget_max_usd: validatedData.budgetMax,
+        preferred_climate: validatedData.climate,
+        internet_speed_requirement: validatedData.net,
+        lifestyle_priorities: validatedData.lifestyle,
+        newsletter_consent: validatedData.agreeData,
+        research_consent: validatedData.agreeData
+      };
+
+      // Show loading toast
+      const loadingToast = toast.loading('Creating your account...');
+
+      // Call the API
+      authService.register(userData)
+        .then((response) => {
+          toast.dismiss(loadingToast);
+          toast.success('Account created successfully! Welcome to NomadPal!');
+          console.log('Registration successful:', response);
+          // TODO: Redirect to login or dashboard
+        })
+        .catch((error) => {
+          toast.dismiss(loadingToast);
+          console.error('Registration failed:', error);
+          toast.error(error.message || 'Registration failed. Please try again.');
+        });
+    } catch (validationError) {
+      // Handle Zod validation errors
+      if (validationError.errors && validationError.errors.length > 0) {
+        const firstError = validationError.errors[0];
+        toast.error(firstError.message);
+        
+        // Focus on the first field with an error
+        const fieldName = firstError.path[0];
+        const fieldElement = document.querySelector(`[name="${fieldName}"]`);
+        if (fieldElement) {
+          fieldElement.focus();
+        }
+      } else {
+        toast.error('Please check your form and try again.');
+      }
     }
-    // TODO: send to your API
-    alert("Account created (demo).");
   }
 
   return (
@@ -151,6 +205,7 @@ export default function Register() {
                   <label>
                     <span>Email address</span>
                     <input
+                      name="email"
                       type="email"
                       placeholder="you@domain.com"
                       value={form.email}
@@ -161,6 +216,7 @@ export default function Register() {
                   <label>
                     <span>Password</span>
                     <input
+                      name="password"
                       type="password"
                       placeholder="Enter a strong password"
                       value={form.password}
@@ -180,6 +236,7 @@ export default function Register() {
                   <label>
                     <span>Display name / nickname</span>
                     <input
+                      name="displayName"
                       placeholder="NomadNina"
                       value={form.displayName}
                       onChange={(e) => update("displayName", e.target.value)}
@@ -188,6 +245,7 @@ export default function Register() {
                   <label>
                     <span>Preferred communication language</span>
                     <input
+                      name="language"
                       placeholder="English (optional)"
                       value={form.language}
                       onChange={(e) => update("language", e.target.value)}
@@ -196,6 +254,7 @@ export default function Register() {
                   <label className="full">
                     <span>Country of residence / origin city</span>
                     <input
+                      name="origin"
                       placeholder="e.g., Lisbon, Portugal"
                       value={form.origin}
                       onChange={(e) => update("origin", e.target.value)}
@@ -204,6 +263,7 @@ export default function Register() {
                   <label className="full">
                     <span>Passport</span>
                     <input
+                      name="passport"
                       placeholder="e.g. Portugese Passport"
                       value={form.passport}
                       onChange={(e) => update("passport", e.target.value)}
@@ -213,6 +273,7 @@ export default function Register() {
                   <span>Timezone</span>
                     <div className="select-wrap">
                         <select
+                        name="timezone"
                         className="input-like"
                         value={form.timezone}
                         onChange={(e) => update("timezone", e.target.value)}
@@ -239,12 +300,13 @@ export default function Register() {
                   <label className="full">
                     <span>Job title / field</span>
                     <input
+                      name="jobTitle"
                       placeholder="e.g., Frontend Developer"
                       value={form.jobTitle}
                       onChange={(e) => update("jobTitle", e.target.value)}
                     />
                     <small className="hint">
-                      We’ll tailor job matches and city suggestions to this role.
+                      We'll tailor job matches and city suggestions to this role.
                     </small>
                   </label>
 
@@ -259,6 +321,7 @@ export default function Register() {
                             Minimum monthly budget
                           </span>
                           <input
+                            name="budgetMin"
                             aria-label="Minimum monthly budget"
                             type="number"
                             min="500"
@@ -274,6 +337,7 @@ export default function Register() {
                             Maximum monthly budget
                           </span>
                           <input
+                            name="budgetMax"
                             aria-label="Maximum monthly budget"
                             type="number"
                             min={form.budgetMin + 100}
@@ -329,8 +393,8 @@ export default function Register() {
                           }`}
                         >
                           <input
-                            type="radio"
                             name="climate"
+                            type="radio"
                             value={c}
                             checked={form.climate === c}
                             onChange={() => update("climate", c)}
@@ -351,8 +415,8 @@ export default function Register() {
                           className={`chip ${form.net === n ? "selected" : ""}`}
                         >
                           <input
-                            type="radio"
                             name="net"
+                            type="radio"
                             value={n}
                             checked={form.net === n}
                             onChange={() => update("net", n)}
@@ -379,6 +443,7 @@ export default function Register() {
                           >
                             <input
                               type="checkbox"
+                              name="lifestyle"
                               value={l}
                               checked={active}
                               onChange={() => toggleChip("lifestyle", l)}
@@ -402,6 +467,7 @@ export default function Register() {
                   <label className="checkbox">
                     <input
                       type="checkbox"
+                      name="agreeData"
                       checked={form.agreeData}
                       onChange={(e) => update("agreeData", e.target.checked)}
                     />
@@ -417,6 +483,7 @@ export default function Register() {
                 <label className="checkbox" style={{ alignItems: "center" }}>
                   <input
                     type="checkbox"
+                    name="agreeTos"
                     checked={form.agreeTos}
                     onChange={(e) => update("agreeTos", e.target.checked)}
                     required
