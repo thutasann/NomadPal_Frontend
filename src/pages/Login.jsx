@@ -45,7 +45,7 @@ export default function Login() {
           
           // Redirect to dashboard or home
           setTimeout(() => {
-            navigate('/');
+            navigate('/profile');
           }, 1500);
         })
         .catch((error) => {

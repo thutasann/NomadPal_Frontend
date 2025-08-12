@@ -1,6 +1,9 @@
 // src/pages/Profile.jsx
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
+import { useAuth } from "../hooks/useAuth";
+import { useUser } from "../hooks/useUser";
 
 /* ========= Predefined select data ========= */
 const VISA_FLEX_OPTIONS = [
@@ -154,91 +157,126 @@ function Card({ title, onEdit, children, footer }) {
    Main Profile Page
 ========================= */
 export default function Profile() {
-  const [user, setUser] = useState({
-    overview: {
-      name: "Nomad Nina",
-      email: "nina@example.com",
-      savedCities: 8,
-      savedJobs: 3,
-      lastRun: "2d ago",
-      completeness: 50,
-    },
-    personal: {
-      displayName: "Nomad Nina",
-      language: "English",
-      countryCity: "Portugal, Lisbon (LIS)",
-      timeZone: "UTC+00:00 (GMT)",
-    },
-    travel: {
-      passport: "Portugal",
-      visaFlex: "Long-stay OK",
-      regions: "Schengen",
-    },
-    work: {
-      jobTitle: "Frontend Developer",
-      salary: 60000,
-      salaryUnit: "year",
-      sources: "Adzuna, Remotive",
-      workStyle: "Async-friendly",
-    },
-    budget: {
-      monthly: 1500,
-      housing: "1-bed apartment",
-      colSensitivity: "Medium",
-    },
-    saved: {
-      cities: [
-        { id: 1, name: "Lisbon", cost: 1500, net: 100, safety: 75 },
-        { id: 2, name: "Chiang Mai", cost: 900, net: 80, safety: 82 },
-      ],
-      jobs: [
-        { id: 1, role: "Frontend Dev", company: "RemoteCo", status: "Applied" },
-        { id: 2, role: "UI Designer", company: "NomadLabs", status: "Interested" },
-      ],
-    },
-    privacy: { consentNews: true, consentResearch: false },
-  });
-
-  // recompute counts when lists change
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+  const { user, isLoading, loadProfile, updateProfile, removeCity, removeJob, loadSavedCities, loadSavedJobs } = useUser();
+  
+  // Track if data has been loaded to prevent infinite loops
+  const [dataLoaded, setDataLoaded] = useState(false);
+  
+  // Redirect if not authenticated
   useEffect(() => {
-    setUser((u) => ({
-      ...u,
-      overview: {
-        ...u.overview,
-        savedCities: u.saved.cities.length,
-        savedJobs: u.saved.jobs.length,
-      },
-    }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.saved?.cities?.length, user.saved?.jobs?.length]);
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+  }, [isAuthenticated, navigate]);
+
+  // Load profile data when component mounts or when authentication changes
+  useEffect(() => {
+    console.log('Profile useEffect triggered:', { isAuthenticated, dataLoaded });
+    
+    if (isAuthenticated && !dataLoaded) {
+      console.log('Loading profile data...');
+      setDataLoaded(true);
+      
+      // Load all data in parallel
+      Promise.all([
+        loadProfile(),
+        loadSavedCities(),
+        loadSavedJobs()
+      ]).catch(error => {
+        console.error('Error loading profile data:', error);
+        setDataLoaded(false); // Reset on error so we can retry
+      });
+    }
+  }, [isAuthenticated, dataLoaded]); // Only depend on isAuthenticated and dataLoaded flag
+
+  // Manual refresh function
+  const handleRefresh = async () => {
+    console.log('Manual refresh triggered');
+    setDataLoaded(false);
+    try {
+      await Promise.all([
+        loadProfile(),
+        loadSavedCities(),
+        loadSavedJobs()
+      ]);
+      setDataLoaded(true);
+      toast.success('Profile refreshed successfully');
+    } catch (error) {
+      console.error('Error refreshing profile:', error);
+      toast.error('Failed to refresh profile');
+    }
+  };
 
   // Which editor is open?
   const [editor, setEditor] = useState(null);
   const close = () => setEditor(null);
 
-  // remove handlers
-  const removeCity = (id) => {
+  // Remove handlers
+  const handleRemoveCity = async (cityId) => {
     if (!window.confirm("Remove this city from your saved list?")) return;
-    setUser((u) => ({
-      ...u,
-      saved: { ...u.saved, cities: u.saved.cities.filter((c) => c.id !== id) },
-    }));
+    
+    try {
+      await removeCity(cityId);
+    } catch (error) {
+      // Error is already handled in the hook
+    }
   };
 
-  const removeJob = (id) => {
+  const handleRemoveJob = async (jobId) => {
     if (!window.confirm("Remove this job from your saved list?")) return;
-    setUser((u) => ({
-      ...u,
-      saved: { ...u.saved, jobs: u.saved.jobs.filter((j) => j.id !== id) },
-    }));
+    
+    try {
+      await removeJob(jobId);
+    } catch (error) {
+      // Error is already handled in the hook
+    }
   };
+
+  // Calculate profile completeness
+  const calculateCompleteness = () => {
+    if (!user) return 0;
+    
+    const fields = [
+      user.display_name,
+      user.country_city,
+      user.job_title,
+      user.monthly_budget_min_usd,
+      user.monthly_budget_max_usd,
+      user.preferred_climate,
+      user.internet_speed_requirement,
+      user.lifestyle_priorities?.length > 0
+    ];
+    
+    const filledFields = fields.filter(Boolean).length;
+    return Math.round((filledFields / fields.length) * 100);
+  };
+
+  // Show loading state
+  if (isLoading || !user) {
+    return (
+      <div className="profile-bg">
+        <div className="container">
+          <div style={{ textAlign: 'center', padding: '100px 20px' }}>
+            <div>Loading profile...</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="profile-bg">
       <div className="container">
         <header className="p-head profile-header">
-          <h1>Profile</h1>
-          <p className="subtitle">Your preferences, saved items, and account settings.</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h1>Profile</h1>
+              <p className="subtitle">Your preferences, saved items, and account settings.</p>
+            </div>
+          </div>
         </header>
 
         <div className="p-grid">
@@ -248,10 +286,10 @@ export default function Profile() {
               <div className="p-overview">
                 <div className="avatar" aria-hidden />
                 <div>
-                  <div className="p-name">{user.overview.name}</div>
-                  <div className="muted">{user.overview.email}</div>
+                  <div className="p-name">{user.display_name || 'Not set'}</div>
+                  <div className="muted">{user.email}</div>
                   <div className="muted p-meta">
-                    Saved Cities: {user.overview.savedCities} • Saved Jobs: {user.overview.savedJobs} • Last Run: {user.overview.lastRun}
+                    Saved Cities: {user.saved_cities?.length || 0} • Saved Jobs: {user.saved_jobs?.length || 0} • Last Updated: {new Date(user.created_at).toLocaleDateString()}
                   </div>
                 </div>
               </div>
@@ -259,35 +297,35 @@ export default function Profile() {
 
             <Card title="Personal Info" onEdit={() => setEditor("personal")}>
               <ul className="p-list">
-                <li><strong>Display name:</strong> {user.personal.displayName}</li>
-                <li><strong>Preferred language:</strong> {user.personal.language}</li>
-                <li><strong>Country & City:</strong> {user.personal.countryCity}</li>
-                <li className="muted"><strong>Time zone:</strong> {user.personal.timeZone}</li>
+                <li><strong>Display name:</strong> {user.display_name || 'Not set'}</li>
+                <li><strong>Preferred language:</strong> {user.preferred_language || 'Not set'}</li>
+                <li><strong>Country & City:</strong> {user.country_city || 'Not set'}</li>
+                <li className="muted"><strong>Time zone:</strong> {user.timezone || 'Not set'}</li>
               </ul>
             </Card>
 
             <Card title="Travel Identity" onEdit={() => setEditor("travel")}>
               <ul className="p-list">
-                <li><strong>Passport:</strong> {user.travel.passport}</li>
-                <li><strong>Visa flexibility:</strong> {user.travel.visaFlex}</li>
-                <li><strong>Preferred regions:</strong> {user.travel.regions}</li>
+                <li><strong>Passport:</strong> {user.passport || 'Not set'}</li>
+                <li><strong>Visa flexibility:</strong> {user.visa_flexibility || 'Not set'}</li>
+                <li><strong>Preferred regions:</strong> {user.preferred_regions || 'Not set'}</li>
               </ul>
             </Card>
 
             <Card title="Work & Job Preferences" onEdit={() => setEditor("work")}>
               <ul className="p-list">
-                <li><strong>Job title:</strong> {user.work.jobTitle}</li>
-                <li><strong>Target salary:</strong> ${user.work.salary.toLocaleString()}/{user.work.salaryUnit}</li>
-                <li><strong>Sources:</strong> {user.work.sources}</li>
-                <li className="muted"><strong>Work style:</strong> {user.work.workStyle}</li>
+                <li><strong>Job title:</strong> {user.job_title || 'Not set'}</li>
+                <li><strong>Target salary:</strong> {user.target_salary_usd ? `$${user.target_salary_usd.toLocaleString()}/${user.salary_currency || 'USD'}` : 'Not set'}</li>
+                <li><strong>Sources:</strong> {user.sources || 'Not set'}</li>
+                <li className="muted"><strong>Work style:</strong> {user.work_style || 'Not set'}</li>
               </ul>
             </Card>
 
             <Card title="Budget & Living Preferences" onEdit={() => setEditor("budget")}>
               <ul className="p-list">
-                <li><strong>Monthly budget:</strong> ${user.budget.monthly.toLocaleString()}</li>
-                <li><strong>Housing:</strong> {user.budget.housing}</li>
-                <li className="muted"><strong>CoL sensitivity:</strong> {user.budget.colSensitivity}</li>
+                <li><strong>Monthly budget:</strong> {user.monthly_budget_min_usd && user.monthly_budget_max_usd ? `$${user.monthly_budget_min_usd.toLocaleString()} - $${user.monthly_budget_max_usd.toLocaleString()}` : 'Not set'}</li>
+                <li><strong>Preferred climate:</strong> {user.preferred_climate || 'Not set'}</li>
+                <li className="muted"><strong>Internet speed:</strong> {user.internet_speed_requirement || 'Not set'}</li>
               </ul>
             </Card>
           </div>
@@ -299,43 +337,44 @@ export default function Profile() {
               footer={<div className="muted">Tip: Fill in Budget, Job Field, and Country/City</div>}
             >
               <div className="p-progress">
-                <div className="p-progress-bar" style={{ width: `${user.overview.completeness}%` }} />
+                <div className="p-progress-bar" style={{ width: `${calculateCompleteness()}%` }} />
               </div>
             </Card>
 
             {/* Saved Cities: display only + view + remove */}
             <Card title="Saved Cities">
               <ul className="p-list">
-                {user.saved.cities.map((c) => (
-                  <li key={c.id} className="saved-row" style={rowStyle}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 600 }}>{c.name}</div>
-                      <div className="muted">${c.cost}/mo, {c.net} Mbps, Safety {c.safety}</div>
-                    </div>
-                    <div style={actionsStyle}>
-                      <Link
-                        to={`/cities/${slug(c.name)}`}
-                        className="icon-btn"
-                        title="View details"
-                        aria-label={`View ${c.name}`}
-                        style={iconBtnStyle}
-                      >
-                        <EyeIcon />
-                      </Link>
-                      <button
-                        className="icon-btn danger"
-                        onClick={() => removeCity(c.id)}
-                        title="Remove"
-                        aria-label={`Remove ${c.name}`}
-                        type="button"
-                        style={{ ...iconBtnStyle, color: "#b91c1c" }}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </li>
-                ))}
-                {user.saved.cities.length === 0 && (
+                {user.saved_cities && user.saved_cities.length > 0 ? (
+                  user.saved_cities.map((city) => (
+                    <li key={city.id} className="saved-row" style={rowStyle}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600 }}>{city.name}</div>
+                        <div className="muted">${city.monthly_cost_usd}/mo, {city.country}</div>
+                      </div>
+                      <div style={actionsStyle}>
+                        <Link
+                          to={`/cities/${city.slug || slug(city.name)}`}
+                          className="icon-btn"
+                          title="View details"
+                          aria-label={`View ${city.name}`}
+                          style={iconBtnStyle}
+                        >
+                          <EyeIcon />
+                        </Link>
+                        <button
+                          className="icon-btn danger"
+                          onClick={() => handleRemoveCity(city.id)}
+                          title="Remove"
+                          aria-label={`Remove ${city.name}`}
+                          type="button"
+                          style={{ ...iconBtnStyle, color: "#b91c1c" }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </li>
+                  ))
+                ) : (
                   <li className="muted">No saved cities yet.</li>
                 )}
               </ul>
@@ -344,38 +383,39 @@ export default function Profile() {
             {/* Saved Jobs: display only + view + remove */}
             <Card title="Saved Jobs">
               <ul className="p-list">
-                {user.saved.jobs.map((j) => (
-                  <li key={j.id} className="saved-row" style={rowStyle}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 600 }}>
-                        {j.role} @ {j.company}
+                {user.saved_jobs && user.saved_jobs.length > 0 ? (
+                  user.saved_jobs.map((job) => (
+                    <li key={job.id} className="saved-row" style={rowStyle}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600 }}>
+                          {job.title} @ {job.company}
+                        </div>
+                        <div className="muted">{job.status || 'Interested'}</div>
                       </div>
-                      <div className="muted">{j.status}</div>
-                    </div>
-                    <div style={actionsStyle}>
-                      <Link
-                        to={`/jobs/${j.id}`}
-                        className="icon-btn"
-                        title="View details"
-                        aria-label={`View ${j.role} at ${j.company}`}
-                        style={iconBtnStyle}
-                      >
-                        <EyeIcon />
-                      </Link>
-                      <button
-                        className="icon-btn danger"
-                        onClick={() => removeJob(j.id)}
-                        title="Remove"
-                        aria-label={`Remove ${j.role} at ${j.company}`}
-                        type="button"
-                        style={{ ...iconBtnStyle, color: "#b91c1c" }}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </li>
-                ))}
-                {user.saved.jobs.length === 0 && (
+                      <div style={actionsStyle}>
+                        <Link
+                          to={`/jobs/${job.id}`}
+                          className="icon-btn"
+                          title="View details"
+                          aria-label={`View ${job.title} at ${job.company}`}
+                          style={iconBtnStyle}
+                        >
+                          <EyeIcon />
+                        </Link>
+                        <button
+                          className="icon-btn danger"
+                          onClick={() => handleRemoveJob(job.id)}
+                          title="Remove"
+                          aria-label={`Remove ${job.title} at ${job.company}`}
+                          type="button"
+                          style={{ ...iconBtnStyle, color: "#b91c1c" }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    </li>
+                  ))
+                ) : (
                   <li className="muted">No saved jobs yet.</li>
                 )}
               </ul>
@@ -383,8 +423,8 @@ export default function Profile() {
 
             <Card title="Privacy & Data" onEdit={() => setEditor("privacy")}>
               <ul className="p-list">
-                <li>Weekly newsletter consent: <strong>{user.privacy.consentNews ? "Yes" : "No"}</strong></li>
-                <li>Research data consent: <strong>{user.privacy.consentResearch ? "Yes" : "No"}</strong></li>
+                <li>Weekly newsletter consent: <strong>{user.newsletter_consent ? "Yes" : "No"}</strong></li>
+                <li>Research data consent: <strong>{user.research_consent ? "Yes" : "No"}</strong></li>
               </ul>
             </Card>
           </div>
@@ -396,41 +436,81 @@ export default function Profile() {
       ========================== */}
       <Modal open={editor === "personal"} title="Edit Personal Info" onClose={close}>
         <PersonalForm
-          value={user.personal}
+          value={user}
           onCancel={close}
-          onSave={(patch) => setUser((u) => ({ ...u, personal: { ...u.personal, ...patch } }))}
+          onSave={async (patch) => {
+            try {
+              await updateProfile(patch);
+              close();
+            } catch (error) {
+              // Error is already handled in the hook
+            }
+          }}
+          isLoading={isLoading}
         />
       </Modal>
 
       <Modal open={editor === "travel"} title="Edit Travel Identity" onClose={close}>
         <TravelForm
-          value={user.travel}
+          value={user}
           onCancel={close}
-          onSave={(patch) => setUser((u) => ({ ...u, travel: { ...u.travel, ...patch } }))}
+          onSave={async (patch) => {
+            try {
+              await updateProfile(patch);
+              close();
+            } catch (error) {
+              // Error is already handled in the hook
+            }
+          }}
+          isLoading={isLoading}
         />
       </Modal>
 
       <Modal open={editor === "work"} title="Edit Work & Job Preferences" onClose={close}>
         <WorkForm
-          value={user.work}
+          value={user}
           onCancel={close}
-          onSave={(patch) => setUser((u) => ({ ...u, work: { ...u.work, ...patch } }))}
+          onSave={async (patch) => {
+            try {
+              await updateProfile(patch);
+              close();
+            } catch (error) {
+              // Error is already handled in the hook
+            }
+          }}
+          isLoading={isLoading}
         />
       </Modal>
 
       <Modal open={editor === "budget"} title="Edit Budget & Living Preferences" onClose={close}>
         <BudgetForm
-          value={user.budget}
+          value={user}
           onCancel={close}
-          onSave={(patch) => setUser((u) => ({ ...u, budget: { ...u.budget, ...patch } }))}
+          onSave={async (patch) => {
+            try {
+              await updateProfile(patch);
+              close();
+            } catch (error) {
+              // Error is already handled in the hook
+            }
+          }}
+          isLoading={isLoading}
         />
       </Modal>
 
       <Modal open={editor === "privacy"} title="Edit Privacy & Data" onClose={close}>
         <PrivacyForm
-          value={user.privacy}
+          value={user}
           onCancel={close}
-          onSave={(patch) => setUser((u) => ({ ...u, privacy: { ...u.privacy, ...patch } }))}
+          onSave={async (patch) => {
+            try {
+              await updateProfile(patch);
+              close();
+            } catch (error) {
+              // Error is already handled in the hook
+            }
+          }}
+          isLoading={isLoading}
         />
       </Modal>
     </div>
@@ -463,19 +543,19 @@ const iconBtnStyle = {
 /* =========================
    Forms with Validations
 ========================= */
-function PersonalForm({ value, onSave, onCancel }) {
+function PersonalForm({ value, onSave, onCancel, isLoading }) {
   const [form, setForm] = useState({
-    displayName: value.displayName || "",
-    language: value.language || "",
-    countryCity: value.countryCity || "",
-    timeZone: TIMEZONE_OPTIONS.includes(value.timeZone) ? value.timeZone : "UTC+00:00 (GMT)",
+    display_name: value.display_name || "",
+    preferred_language: value.preferred_language || "",
+    country_city: value.country_city || "",
+    timezone: TIMEZONE_OPTIONS.includes(value.timezone) ? value.timezone : "UTC+00:00 (GMT)",
   });
   const [errors, setErrors] = useState({});
 
   const validate = () => {
     const e = {};
-    if (!form.displayName.trim()) e.displayName = "Display name is required.";
-    if (!form.countryCity.trim()) e.countryCity = "Country & City is required.";
+    if (!form.display_name.trim()) e.display_name = "Display name is required.";
+    if (!form.country_city.trim()) e.country_city = "Country & City is required.";
     return e;
   };
 
@@ -490,20 +570,20 @@ function PersonalForm({ value, onSave, onCancel }) {
 
   return (
     <form className="modal-form" onSubmit={submit}>
-      <TextInput label="Display name" value={form.displayName} onChange={(v) => setForm(f => ({...f, displayName: v}))} required />
-      <ErrorText>{errors.displayName}</ErrorText>
+      <TextInput label="Display name" value={form.display_name} onChange={(v) => setForm(f => ({...f, display_name: v}))} required />
+      <ErrorText>{errors.display_name}</ErrorText>
 
-      <TextInput label="Preferred language" value={form.language} onChange={(v) => setForm(f => ({...f, language: v}))} placeholder="English" />
+      <TextInput label="Preferred language" value={form.preferred_language} onChange={(v) => setForm(f => ({...f, preferred_language: v}))} placeholder="English" />
 
-      <TextInput label="Country & City" value={form.countryCity} onChange={(v) => setForm(f => ({...f, countryCity: v}))} required />
-      <ErrorText>{errors.countryCity}</ErrorText>
+      <TextInput label="Country & City" value={form.country_city} onChange={(v) => setForm(f => ({...f, country_city: v}))} required />
+      <ErrorText>{errors.country_city}</ErrorText>
 
       <label>
         <span>Time zone</span>
         <select
           className="input"
-          value={form.timeZone}
-          onChange={(e) => setForm(f => ({ ...f, timeZone: e.target.value }))}
+          value={form.timezone}
+          onChange={(e) => setForm(f => ({ ...f, timezone: e.target.value }))}
         >
           {TIMEZONE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
         </select>
@@ -511,20 +591,22 @@ function PersonalForm({ value, onSave, onCancel }) {
 
       <div className="modal-actions">
         <button type="button" className="btn" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn primary">Save</button>
+        <button type="submit" className="btn primary" disabled={isLoading}>
+          {isLoading ? "Saving..." : "Save"}
+        </button>
       </div>
     </form>
   );
 }
 
-function TravelForm({ value, onSave, onCancel }) {
+function TravelForm({ value, onSave, onCancel, isLoading }) {
   const [form, setForm] = useState({
     passport: value?.passport || "",
-    visaFlex: value?.visaFlex && VISA_FLEX_OPTIONS.includes(value.visaFlex)
-      ? value.visaFlex
+    visa_flexibility: value?.visa_flexibility && VISA_FLEX_OPTIONS.includes(value.visa_flexibility)
+      ? value.visa_flexibility
       : VISA_FLEX_OPTIONS[0],
-    regions: value?.regions && REGION_OPTIONS.includes(value.regions)
-      ? value.regions
+    preferred_regions: value?.preferred_regions && REGION_OPTIONS.includes(value.preferred_regions)
+      ? value.preferred_regions
       : REGION_OPTIONS[0],
   });
   const [errors, setErrors] = useState({});
@@ -553,8 +635,8 @@ function TravelForm({ value, onSave, onCancel }) {
         <span>Visa flexibility</span>
         <select
           className="input"
-          value={form.visaFlex}
-          onChange={(e) => setForm(f => ({ ...f, visaFlex: e.target.value }))}
+          value={form.visa_flexibility}
+          onChange={(e) => setForm(f => ({ ...f, visa_flexibility: e.target.value }))}
         >
           {VISA_FLEX_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
         </select>
@@ -564,8 +646,8 @@ function TravelForm({ value, onSave, onCancel }) {
         <span>Preferred regions</span>
         <select
           className="input"
-          value={form.regions}
-          onChange={(e) => setForm(f => ({ ...f, regions: e.target.value }))}
+          value={form.preferred_regions}
+          onChange={(e) => setForm(f => ({ ...f, preferred_regions: e.target.value }))}
         >
           {REGION_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
         </select>
@@ -573,27 +655,29 @@ function TravelForm({ value, onSave, onCancel }) {
 
       <div className="modal-actions">
         <button type="button" className="btn" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn primary">Save</button>
+        <button type="submit" className="btn primary" disabled={isLoading}>
+          {isLoading ? "Saving..." : "Save"}
+        </button>
       </div>
     </form>
   );
 }
 
-function WorkForm({ value, onSave, onCancel }) {
+function WorkForm({ value, onSave, onCancel, isLoading }) {
   const [form, setForm] = useState({
-    jobTitle: value.jobTitle || "",
-    salary: value.salary ?? 0,
-    salaryUnit: value.salaryUnit || "year",
+    job_title: value.job_title || "",
+    target_salary_usd: value.target_salary_usd ?? 0,
+    salary_currency: value.salary_currency || "USD",
     sources: value.sources || "",
-    workStyle: value.workStyle || "",
+    work_style: value.work_style || "",
   });
   const [errors, setErrors] = useState({});
 
   const validate = () => {
     const e = {};
-    if (form.jobTitle.trim() === "") e.jobTitle = "Job title is required.";
-    if (isNaN(form.salary) || Number(form.salary) <= 0) e.salary = "Enter a valid salary.";
-    if (!["year", "month"].includes(form.salaryUnit)) e.salaryUnit = "Choose year or month.";
+    if (form.job_title.trim() === "") e.job_title = "Job title is required.";
+    if (isNaN(form.target_salary_usd) || Number(form.target_salary_usd) <= 0) e.target_salary_usd = "Enter a valid salary.";
+    if (!["USD", "EUR", "GBP"].includes(form.salary_currency)) e.salary_currency = "Choose a valid currency.";
     return e;
   };
 
@@ -602,51 +686,56 @@ function WorkForm({ value, onSave, onCancel }) {
     const eMap = validate();
     setErrors(eMap);
     if (Object.keys(eMap).length) return;
-    onSave?.({ ...form, salary: Number(form.salary) });
+    onSave?.({ ...form, target_salary_usd: Number(form.target_salary_usd) });
     onCancel?.();
   }
 
   return (
     <form className="modal-form" onSubmit={submit}>
-      <TextInput label="Job title / field" value={form.jobTitle} onChange={(v) => setForm(f => ({...f, jobTitle: v}))} required />
-      <ErrorText>{errors.jobTitle}</ErrorText>
+      <TextInput label="Job title / field" value={form.job_title} onChange={(v) => setForm(f => ({...f, job_title: v}))} required />
+      <ErrorText>{errors.job_title}</ErrorText>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 140px", gap: 12 }}>
-        <NumberInput label="Target salary" value={form.salary} onChange={(v) => setForm(f => ({...f, salary: v}))} min={1} required />
+        <NumberInput label="Target salary" value={form.target_salary_usd} onChange={(v) => setForm(f => ({...f, target_salary_usd: v}))} min={1} required />
         <label>
           <span>Unit</span>
-          <select className="input" value={form.salaryUnit} onChange={(e) => setForm(f => ({...f, salaryUnit: e.target.value}))}>
-            <option value="year">per year</option>
-            <option value="month">per month</option>
+          <select className="input" value={form.salary_currency} onChange={(e) => setForm(f => ({...f, salary_currency: e.target.value}))}>
+            <option value="USD">USD</option>
+            <option value="EUR">EUR</option>
+            <option value="GBP">GBP</option>
           </select>
         </label>
       </div>
-      <ErrorText>{errors.salary || errors.salaryUnit}</ErrorText>
+      <ErrorText>{errors.target_salary_usd || errors.salary_currency}</ErrorText>
 
       <TextInput label="Sources" value={form.sources} onChange={(v) => setForm(f => ({...f, sources: v}))} placeholder="Adzuna, Remotive" />
-      <TextInput label="Work style" value={form.workStyle} onChange={(v) => setForm(f => ({...f, workStyle: v}))} placeholder="Async-friendly" />
+      <TextInput label="Work style" value={form.work_style} onChange={(v) => setForm(f => ({...f, work_style: v}))} placeholder="Async-friendly" />
 
       <div className="modal-actions">
         <button type="button" className="btn" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn primary">Save</button>
+        <button type="submit" className="btn primary" disabled={isLoading}>
+          {isLoading ? "Saving..." : "Save"}
+        </button>
       </div>
     </form>
   );
 }
 
-function BudgetForm({ value, onSave, onCancel }) {
+function BudgetForm({ value, onSave, onCancel, isLoading }) {
   const [form, setForm] = useState({
-    monthly: value.monthly ?? 0,
-    housing: value.housing || "",
-    colSensitivity: value.colSensitivity || "Medium",
+    monthly_budget_min_usd: value.monthly_budget_min_usd ?? 0,
+    monthly_budget_max_usd: value.monthly_budget_max_usd ?? 0,
+    preferred_climate: value.preferred_climate || "Any",
+    internet_speed_requirement: value.internet_speed_requirement || "Any",
   });
   const [errors, setErrors] = useState({});
 
   const validate = () => {
     const e = {};
-    if (isNaN(form.monthly) || Number(form.monthly) < 300) e.monthly = "Monthly budget must be ≥ 300.";
-    if (!form.housing.trim()) e.housing = "Housing is required.";
-    if (!["Low", "Medium", "High"].includes(form.colSensitivity)) e.colSensitivity = "Choose Low, Medium, or High.";
+    if (isNaN(form.monthly_budget_min_usd) || Number(form.monthly_budget_min_usd) < 300) e.monthly_budget_min_usd = "Monthly budget must be ≥ 300.";
+    if (isNaN(form.monthly_budget_max_usd) || Number(form.monthly_budget_max_usd) < 300) e.monthly_budget_max_usd = "Monthly budget must be ≥ 300.";
+    if (!form.preferred_climate.trim()) e.preferred_climate = "Preferred climate is required.";
+    if (!form.internet_speed_requirement.trim()) e.internet_speed_requirement = "Internet speed requirement is required.";
     return e;
   };
 
@@ -655,38 +744,38 @@ function BudgetForm({ value, onSave, onCancel }) {
     const eMap = validate();
     setErrors(eMap);
     if (Object.keys(eMap).length) return;
-    onSave?.({ ...form, monthly: Number(form.monthly) });
+    onSave?.({ ...form, monthly_budget_min_usd: Number(form.monthly_budget_min_usd), monthly_budget_max_usd: Number(form.monthly_budget_max_usd) });
     onCancel?.();
   }
 
   return (
     <form className="modal-form" onSubmit={submit}>
-      <NumberInput label="Monthly budget (USD)" value={form.monthly} onChange={(v) => setForm(f => ({...f, monthly: v}))} min={300} step={50} required />
-      <ErrorText>{errors.monthly}</ErrorText>
+      <NumberInput label="Monthly budget (USD)" value={form.monthly_budget_min_usd} onChange={(v) => setForm(f => ({...f, monthly_budget_min_usd: v}))} min={300} step={50} required />
+      <ErrorText>{errors.monthly_budget_min_usd}</ErrorText>
 
-      <TextInput label="Housing" value={form.housing} onChange={(v) => setForm(f => ({...f, housing: v}))} placeholder="1-bed apartment" required />
-      <ErrorText>{errors.housing}</ErrorText>
+      <NumberInput label="Monthly budget (USD)" value={form.monthly_budget_max_usd} onChange={(v) => setForm(f => ({...f, monthly_budget_max_usd: v}))} min={300} step={50} required />
+      <ErrorText>{errors.monthly_budget_max_usd}</ErrorText>
 
-      <label>
-        <span>Cost-of-living sensitivity</span>
-        <select className="input" value={form.colSensitivity} onChange={(e) => setForm(f => ({...f, colSensitivity: e.target.value}))}>
-          <option>Low</option><option>Medium</option><option>High</option>
-        </select>
-      </label>
-      <ErrorText>{errors.colSensitivity}</ErrorText>
+      <TextInput label="Preferred climate" value={form.preferred_climate} onChange={(v) => setForm(f => ({...f, preferred_climate: v}))} placeholder="Any" required />
+      <ErrorText>{errors.preferred_climate}</ErrorText>
+
+      <TextInput label="Internet speed requirement" value={form.internet_speed_requirement} onChange={(v) => setForm(f => ({...f, internet_speed_requirement: v}))} placeholder="Any" required />
+      <ErrorText>{errors.internet_speed_requirement}</ErrorText>
 
       <div className="modal-actions">
         <button type="button" className="btn" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn primary">Save</button>
+        <button type="submit" className="btn primary" disabled={isLoading}>
+          {isLoading ? "Saving..." : "Save"}
+        </button>
       </div>
     </form>
   );
 }
 
-function PrivacyForm({ value, onSave, onCancel }) {
+function PrivacyForm({ value, onSave, onCancel, isLoading }) {
   const [form, setForm] = useState({
-    consentNews: !!value.consentNews,
-    consentResearch: !!value.consentResearch,
+    newsletter_consent: !!value.newsletter_consent,
+    research_consent: !!value.research_consent,
   });
 
   function submit(e) {
@@ -700,8 +789,8 @@ function PrivacyForm({ value, onSave, onCancel }) {
       <label className="checkbox" style={{ alignItems: "center" }}>
         <input
           type="checkbox"
-          checked={form.consentNews}
-          onChange={(e) => setForm((f) => ({ ...f, consentNews: e.target.checked }))}
+          checked={form.newsletter_consent}
+          onChange={(e) => setForm((f) => ({ ...f, newsletter_consent: e.target.checked }))}
         />
         <span>Subscribe to weekly newsletter</span>
       </label>
@@ -709,15 +798,17 @@ function PrivacyForm({ value, onSave, onCancel }) {
       <label className="checkbox" style={{ alignItems: "center" }}>
         <input
           type="checkbox"
-          checked={form.consentResearch}
-          onChange={(e) => setForm((f) => ({ ...f, consentResearch: e.target.checked }))}
+          checked={form.research_consent}
+          onChange={(e) => setForm((f) => ({ ...f, research_consent: e.target.checked }))}
         />
         <span>Allow anonymized research data usage</span>
       </label>
 
       <div className="modal-actions">
         <button type="button" className="btn" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn primary">Save</button>
+        <button type="submit" className="btn primary" disabled={isLoading}>
+          {isLoading ? "Saving..." : "Save"}
+        </button>
       </div>
     </form>
   );

@@ -1,4 +1,5 @@
 import { toast } from "react-hot-toast";
+import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 
@@ -15,12 +16,12 @@ export default function Navbar() {
   return (
     <header className="nav">
       <div className="container">
-        <a className="brand" href="/">NomadPal</a>
+        <Link className="brand" to="/">NomadPal</Link>
         <nav className="nav-links">
-          <a href="/cities">Cities</a>
+          <Link to="/cities">Cities</Link>
           {isAuthenticated ? (
             <>
-              <a href="/profile">Profile</a>
+              <Link to="/profile">Profile</Link>
               <button 
                 className="btn small ghost" 
                 onClick={handleLogout}
@@ -30,8 +31,8 @@ export default function Navbar() {
             </>
           ) : (
             <>
-              <a href="/login">Login</a>
-              <a className="btn small" href="/register">Sign Up</a>
+              <Link to="/login">Login</Link>
+              <Link className="btn small" to="/register">Sign Up</Link>
             </>
           )}
         </nav>
