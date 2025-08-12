@@ -1,9 +1,14 @@
 import { useState } from "react";
 import { toast } from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
 import { loginSchema } from "../validations/auth.validation";
 import authService from "../services/auth.service";
 
 export default function Login() {
+  const { actions } = useAuth();
+  const navigate = useNavigate();
+  
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
     email: "",
@@ -21,6 +26,9 @@ export default function Login() {
       // Validate form data with Zod
       const validatedData = loginSchema.parse(form);
       
+      // Set loading state
+      actions.setLoading(true);
+      
       // Show loading toast
       const loadingToast = toast.loading('Logging you in...');
 
@@ -29,12 +37,23 @@ export default function Login() {
         .then((response) => {
           toast.dismiss(loadingToast);
           toast.success('Login successful! Welcome back!');
+          
+          // Update Redux store using custom hook
+          actions.loginSuccess(response.data);
+          
           console.log('Login successful:', response);
-          // TODO: Store token and redirect to dashboard
+          
+          // Redirect to dashboard or home
+          setTimeout(() => {
+            navigate('/');
+          }, 1500);
         })
         .catch((error) => {
           toast.dismiss(loadingToast);
           console.error('Login failed:', error);
+          
+          // Update Redux store with error
+          actions.setError(error.message || 'Login failed. Please try again.');
           toast.error(error.message || 'Login failed. Please try again.');
         });
       

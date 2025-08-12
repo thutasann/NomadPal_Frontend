@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { toast } from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
 import authService from "../services/auth.service";
 import { registerSchema } from "../validations/auth.validation";
 
@@ -47,6 +49,9 @@ const TIMEZONE_OPTIONS = [
 ];
 
 export default function Register() {
+  const { actions } = useAuth();
+  const navigate = useNavigate();
+  
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -123,6 +128,9 @@ export default function Register() {
       // Validate form data with Zod
       const validatedData = registerSchema.parse(form);
       
+      // Set loading state
+      actions.setLoading(true);
+      
       // Prepare data for API
       const userData = {
         email: validatedData.email,
@@ -150,12 +158,23 @@ export default function Register() {
         .then((response) => {
           toast.dismiss(loadingToast);
           toast.success('Account created successfully! Welcome to NomadPal!');
+          
+          // Update Redux store using custom hook
+          actions.registerSuccess(response.data);
+          
           console.log('Registration successful:', response);
-          // TODO: Redirect to login or dashboard
+          
+          // Redirect to dashboard or home
+          setTimeout(() => {
+            navigate('/');
+          }, 1500);
         })
         .catch((error) => {
           toast.dismiss(loadingToast);
           console.error('Registration failed:', error);
+          
+          // Update Redux store with error
+          actions.setError(error.message || 'Registration failed. Please try again.');
           toast.error(error.message || 'Registration failed. Please try again.');
         });
     } catch (validationError) {
