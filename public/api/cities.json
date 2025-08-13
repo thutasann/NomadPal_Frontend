@@ -1,8 +1,0 @@
-[
-    { "id": 1, "name": "Lisbon", "country": "Portugal", "cost": 1800, "internet": 120, "safety": 78, "climate": "mild", "score": 88 },
-    { "id": 2, "name": "Chiang Mai", "country": "Thailand", "cost": 1000, "internet": 90, "safety": 70, "climate": "warm", "score": 86 },
-    { "id": 3, "name": "Mexico City", "country": "Mexico", "cost": 1500, "internet": 80, "safety": 60, "climate": "mild", "score": 79 },
-    { "id": 4, "name": "Tallinn", "country": "Estonia", "cost": 1900, "internet": 160, "safety": 82, "climate": "cool", "score": 84 },
-    { "id": 5, "name": "Bali (Canggu)", "country": "Indonesia", "cost": 1300, "internet": 70, "safety": 62, "climate": "warm", "score": 80 }
-  ]
-  
