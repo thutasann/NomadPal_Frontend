@@ -444,7 +444,7 @@ export default function CityDetail() {
                   </button>
 
                   {/* Save — stop the row click */}
-                  <button
+                  {/* <button
                     className="btn small"
                     style={{
                       background: isSaved(job.id) ? "#E1E7FF" : "#E5E7EB",
@@ -461,7 +461,7 @@ export default function CityDetail() {
                     aria-pressed={isSaved(job.id)}
                   >
                     {isSaved(job.id) ? "Saved" : "Save"}
-                  </button>
+                  </button> */}
                 </div>
               </div>
               ))
