@@ -2,6 +2,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useCities } from "../hooks/useCities";
+import { useJobs } from "../hooks/useJobs";
 import { toast } from "react-hot-toast";
 
 /* ---------- small card wrapper ---------- */
@@ -33,6 +34,17 @@ export default function CityDetail() {
   const navigate = useNavigate();
   const { currentCity, loadCityBySlug, isLoading, error } = useCities();
   
+  // Jobs hook
+  const {
+    jobs,
+    searchResults,
+    isLoading: jobsLoading,
+    error: jobsError,
+    fetchLatestJobs,
+    searchJobs,
+    clearSearchData
+  } = useJobs();
+  
   // Local state for the specific city
   const [city, setCity] = useState(null);
   const [localIsLoading, setLocalIsLoading] = useState(true);
@@ -42,6 +54,7 @@ export default function CityDetail() {
   const pageSize = 5;
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Saved jobs state
   const [savedIds, setSavedIds] = useState(() => loadSaved());
@@ -70,31 +83,91 @@ export default function CityDetail() {
     }
   }, [slug, loadCityBySlug]);
 
+  // Load initial jobs when component mounts
+  useEffect(() => {
+    const loadInitialJobs = async () => {
+      try {
+        // Load latest remote jobs (limit to 20 for performance)
+        await fetchLatestJobs({ limit: 20 });
+      } catch (err) {
+        console.error('Error loading jobs:', err);
+        toast.error('Failed to load job listings');
+      }
+    };
+
+    loadInitialJobs();
+  }, [fetchLatestJobs]);
+
   // Save saved jobs to localStorage
   useEffect(() => saveSaved(savedIds), [savedIds]);
 
-  // For now, we'll use empty jobs array since we don't have job data yet
-  const cityJobs = [];
-  
+  // Cleanup search timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (window.searchTimeout) {
+        clearTimeout(window.searchTimeout);
+      }
+    };
+  }, []);
+
+  // Use jobs from the redux store - prioritize search results if searching
+  const displayJobs = query.trim() ? (searchResults || []) : (jobs || []);
+
   const filteredJobs = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return cityJobs;
-    return cityJobs.filter(
+    if (!q) return displayJobs;
+    
+    // If we have search results from API, use them directly
+    if (searchResults && searchResults.length > 0) {
+      return searchResults;
+    }
+    
+    // Otherwise, filter locally
+    return displayJobs.filter(
       (j) =>
-        j.title.toLowerCase().includes(q) ||
-        j.company.toLowerCase().includes(q) ||
-        j.pay.toLowerCase().includes(q)
+        j.title?.toLowerCase().includes(q) ||
+        j.company_name?.toLowerCase().includes(q) ||
+        j.category?.toLowerCase().includes(q) ||
+        j.salary?.toLowerCase().includes(q) ||
+        j.location?.toLowerCase().includes(q)
     );
-  }, [query, cityJobs]);
+  }, [query, displayJobs, searchResults]);
 
   const totalPages = Math.max(1, Math.ceil(filteredJobs.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const sliceStart = (currentPage - 1) * pageSize;
   const pageJobs = filteredJobs.slice(sliceStart, sliceStart + pageSize);
 
+  // Handle search input change with debouncing
   function onSearch(e) {
-    setQuery(e.target.value);
+    const value = e.target.value;
+    setQuery(value);
     setPage(1);
+    
+    // Clear any existing timeout
+    if (window.searchTimeout) {
+      clearTimeout(window.searchTimeout);
+    }
+    
+    // If searching with API, perform search after user stops typing
+    if (value.trim()) {
+      setIsSearching(true);
+      // Debounce search to avoid too many API calls
+      window.searchTimeout = setTimeout(async () => {
+        try {
+          await searchJobs(value.trim(), { limit: 20 });
+        } catch (err) {
+          console.error('Search error:', err);
+          toast.error('Failed to search jobs');
+        } finally {
+          setIsSearching(false);
+        }
+      }, 500);
+    } else {
+      // Clear search results and show all jobs
+      clearSearchData();
+      setIsSearching(false);
+    }
   }
 
   const isSaved = (id) => savedIds.includes(id);
@@ -105,14 +178,20 @@ export default function CityDetail() {
 
   /* ---------------- Navigation to job detail ---------------- */
   function openJob(job) {
-    // Navigate to /jobs/:id and pass job data in state (easy to replace with Adzuna later)
-    navigate(`/jobs/${job.id}`, {
-      state: {
-        job,
-        city: city.name,
-        source: "city-detail",
-      },
-    });
+    // For external jobs, we can either navigate to a local job detail page or open the external URL
+    // Since these are Remotive jobs, we can open the external URL directly
+    if (job.url) {
+      window.open(job.url, '_blank');
+    } else {
+      // Fallback: navigate to internal job detail page
+      navigate(`/jobs/${job.id}`, {
+        state: {
+          job,
+          city: city?.name,
+          source: "city-detail",
+        },
+      });
+    }
   }
 
   // Show loading state
@@ -283,107 +362,142 @@ export default function CityDetail() {
         </Card>
 
         {/* Jobs (scrollable + pagination) */}
-        <Card title="Popular Job Listings">
+        <Card title="Remote Job Listings">
+          {!jobsLoading && displayJobs.length > 0 && (
+            <div style={{ fontSize: '14px', color: '#666', marginBottom: '12px' }}>
+              {query.trim() ? 
+                `Found ${filteredJobs.length} job${filteredJobs.length !== 1 ? 's' : ''} matching "${query}"` :
+                `Showing ${displayJobs.length} latest remote job${displayJobs.length !== 1 ? 's' : ''}`
+              }
+            </div>
+          )}
+          
           <div className="job-search">
             <input
-              placeholder="Search jobs..."
+              placeholder="Search remote jobs..."
               value={query}
               onChange={onSearch}
               aria-label="Search jobs"
+              disabled={isSearching || jobsLoading}
             />
+            {(isSearching || jobsLoading) && (
+              <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                {isSearching ? 'Searching...' : 'Loading jobs...'}
+              </div>
+            )}
           </div>
 
           {/* Only this area scrolls */}
           <div className="job-list-scroll" role="region" aria-label="Job results">
             {pageJobs.length > 0 ? (
               pageJobs.map((job) => (
-                <div
-                  key={job.id}
-                  className="job-row"
-                  onClick={() => openJob(job)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => e.key === "Enter" && openJob(job)}
-                  title="Open job details"
-                >
-                  <div className="job-main">
-                    <div className="job-title">{job.title}</div>
-                    <div className="muted">
-                      {job.company} • {job.pay}
-                    </div>
+              <div
+                key={job.id}
+                className="job-row"
+                onClick={() => openJob(job)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === "Enter" && openJob(job)}
+                title="Open job details"
+              >
+                <div className="job-main">
+                  <div className="job-title">{job.title}</div>
+                  <div className="muted">
+                    {job.company_name} • {job.category}
+                    {job.salary && ` • ${job.salary}`}
                   </div>
-
-                  <div style={{ display: "flex", gap: 8 }}>
-                    {/* Apply — stop the row click */}
-                    <button
-                      className="btn small"
-                      style={{
-                        background: "#6C63FF",
-                        color: "#fff",
-                        padding: "6px 12px",
-                        borderRadius: 8,
-                        border: "none",
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const href = job.applyUrl || "#";
-                        if (href && href !== "#") window.open(href, "_blank");
-                      }}
-                    >
-                      Apply
-                    </button>
-
-                    {/* Save — stop the row click */}
-                    <button
-                      className="btn small"
-                      style={{
-                        background: isSaved(job.id) ? "#E1E7FF" : "#E5E7EB",
-                        color: "#111",
-                        padding: "6px 12px",
-                        borderRadius: 8,
-                        border: "none",
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleSave(job.id);
-                      }}
-                      aria-pressed={isSaved(job.id)}
-                    >
-                      {isSaved(job.id) ? "Saved" : "Save"}
-                    </button>
+                  <div style={{ fontSize: '12px', color: '#888', marginTop: '2px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {job.location && (
+                      <span>📍 {job.location}</span>
+                    )}
+                    {job.job_type && (
+                      <span>⏰ {job.job_type.replace('_', ' ')}</span>
+                    )}
+                    {job.publication_date && (
+                      <span>📅 {new Date(job.publication_date).toLocaleDateString()}</span>
+                    )}
                   </div>
                 </div>
+
+                <div style={{ display: "flex", gap: 8 }}>
+                  {/* Apply — stop the row click */}
+                  <button
+                    className="btn small"
+                    style={{
+                      background: "#6C63FF",
+                      color: "#fff",
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      border: "none",
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const href = job.url;
+                      if (href) {
+                        window.open(href, "_blank");
+                      } else {
+                        toast.error('Job application link not available');
+                      }
+                    }}
+                  >
+                    Apply
+                  </button>
+
+                  {/* Save — stop the row click */}
+                  <button
+                    className="btn small"
+                    style={{
+                      background: isSaved(job.id) ? "#E1E7FF" : "#E5E7EB",
+                      color: "#111",
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      border: "none",
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSave(job.id);
+                      toast.success(isSaved(job.id) ? 'Job removed from saved' : 'Job saved!');
+                    }}
+                    aria-pressed={isSaved(job.id)}
+                  >
+                    {isSaved(job.id) ? "Saved" : "Save"}
+                  </button>
+                </div>
+              </div>
               ))
             ) : (
               <div className="muted" style={{ padding: 12 }}>
-                {cityJobs.length === 0 ? 'No job listings available for this city yet.' : 'No jobs match your search.'}
+                {jobsLoading ? 'Loading remote jobs...' : 
+                 jobsError ? 'Failed to load jobs. Please try again.' :
+                 displayJobs.length === 0 ? 'No remote job listings available yet.' : 
+                 'No jobs match your search.'}
               </div>
             )}
           </div>
 
           {/* Pagination controls (outside the scroll area) */}
-          {cityJobs.length > 0 && (
-            <div className="jobs-pagination">
-              <button
-                className="btn"
-                disabled={currentPage === 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                ← Previous
-              </button>
+          {filteredJobs.length > 0 && (
+          <div className="jobs-pagination">
+            <button
+              className="btn"
+              disabled={currentPage === 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              ← Previous
+            </button>
 
-              <span className="page-indicator">
-                Page {currentPage} / {totalPages}
-              </span>
+            <span className="page-indicator">
+              Page {currentPage} / {totalPages}
+            </span>
 
-              <button
-                className="btn"
-                disabled={currentPage >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              >
-                Next →
-              </button>
-            </div>
+            <button
+              className="btn"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+              Next →
+            </button>
+          </div>
           )}
         </Card>
       </div>

@@ -3,23 +3,25 @@ import { createSlice } from '@reduxjs/toolkit';
 const initialState = {
   jobs: [],
   currentJob: null,
-  filteredJobs: [],
+  latestJobs: [],
+  categories: [],
+  searchResults: [],
   filters: {
-    title: '',
-    location: '',
     category: '',
-    job_type: '',
-    min_salary: null,
-    max_salary: null,
-    city_id: null,
+    company_name: '',
+    search: '',
+    limit: 20
   },
   pagination: {
-    page: 1,
-    limit: 20,
-    total: 0,
+    current_page: 1,
+    total_pages: 1,
+    total_jobs: 0,
+    per_page: 20,
+    has_next_page: false,
+    has_prev_page: false
   },
   isLoading: false,
-  error: null,
+  error: null
 };
 
 const jobsSlice = createSlice({
@@ -37,132 +39,79 @@ const jobsSlice = createSlice({
       state.error = null;
     },
     
-    // Set all jobs
+    // Set jobs data
     setJobs: (state, action) => {
       state.jobs = action.payload;
-      state.filteredJobs = action.payload;
-      state.pagination.total = action.payload.length;
       state.isLoading = false;
       state.error = null;
     },
-    
-    // Set current job (for detail view)
+    addJobs: (state, action) => {
+      const newJobs = action.payload;
+      const existingIds = new Set(state.jobs.map(job => job.id));
+      
+      // Only add jobs that don't already exist
+      const uniqueNewJobs = newJobs.filter(job => !existingIds.has(job.id));
+      state.jobs = [...state.jobs, ...uniqueNewJobs];
+      state.isLoading = false;
+      state.error = null;
+    },
     setCurrentJob: (state, action) => {
       state.currentJob = action.payload;
     },
     
-    // Add a single job
-    addJob: (state, action) => {
-      const job = action.payload;
-      const existingIndex = state.jobs.findIndex(j => j.id === job.id);
-      if (existingIndex >= 0) {
-        state.jobs[existingIndex] = job;
-      } else {
-        state.jobs.push(job);
-      }
+    // Set latest jobs
+    setLatestJobs: (state, action) => {
+      state.latestJobs = action.payload;
+      state.isLoading = false;
+      state.error = null;
     },
     
-    // Update job data
-    updateJob: (state, action) => {
-      const { id, updates } = action.payload;
-      const jobIndex = state.jobs.findIndex(j => j.id === id);
-      if (jobIndex >= 0) {
-        state.jobs[jobIndex] = { ...state.jobs[jobIndex], ...updates };
-      }
+    // Set job categories
+    setCategories: (state, action) => {
+      state.categories = action.payload;
+      state.isLoading = false;
+      state.error = null;
     },
     
-    // Remove job
-    removeJob: (state, action) => {
-      const jobId = action.payload;
-      state.jobs = state.jobs.filter(j => j.id !== jobId);
-      state.filteredJobs = state.filteredJobs.filter(j => j.id !== jobId);
+    // Set search results
+    setSearchResults: (state, action) => {
+      state.searchResults = action.payload;
+      state.isLoading = false;
+      state.error = null;
+    },
+    clearSearchResults: (state) => {
+      state.searchResults = [];
     },
     
-    // Set filters
+    // Filters
     setFilters: (state, action) => {
       state.filters = { ...state.filters, ...action.payload };
-      state.pagination.page = 1; // Reset to first page when filters change
     },
-    
-    // Clear all filters
     clearFilters: (state) => {
       state.filters = initialState.filters;
-      state.filteredJobs = state.jobs;
-      state.pagination.page = 1;
-    },
-    
-    // Apply filters to jobs
-    applyFilters: (state) => {
-      let filtered = [...state.jobs];
-      
-      // Title filter
-      if (state.filters.title) {
-        filtered = filtered.filter(job => 
-          job.title.toLowerCase().includes(state.filters.title.toLowerCase())
-        );
-      }
-      
-      // Location filter
-      if (state.filters.location) {
-        filtered = filtered.filter(job => 
-          job.location.toLowerCase().includes(state.filters.location.toLowerCase())
-        );
-      }
-      
-      // Category filter
-      if (state.filters.category) {
-        filtered = filtered.filter(job => 
-          job.category === state.filters.category
-        );
-      }
-      
-      // Job type filter
-      if (state.filters.job_type) {
-        filtered = filtered.filter(job => 
-          job.job_type === state.filters.job_type
-        );
-      }
-      
-      // Salary filters
-      if (state.filters.min_salary !== null) {
-        filtered = filtered.filter(job => 
-          job.min_salary >= state.filters.min_salary
-        );
-      }
-      if (state.filters.max_salary !== null) {
-        filtered = filtered.filter(job => 
-          job.max_salary <= state.filters.max_salary
-        );
-      }
-      
-      // City filter
-      if (state.filters.city_id) {
-        filtered = filtered.filter(job => 
-          job.city_id === state.filters.city_id
-        );
-      }
-      
-      state.filteredJobs = filtered;
-      state.pagination.total = filtered.length;
-      state.pagination.page = 1;
     },
     
     // Pagination
     setPage: (state, action) => {
-      state.pagination.page = action.payload;
+      state.pagination.current_page = action.payload;
     },
     setLimit: (state, action) => {
-      state.pagination.limit = action.payload;
-      state.pagination.page = 1;
+      state.pagination.per_page = action.payload;
+    },
+    setPagination: (state, action) => {
+      state.pagination = { ...state.pagination, ...action.payload };
     },
     
-    // Clear jobs data
+    // Clear all jobs data
     clearJobs: (state) => {
       state.jobs = [];
-      state.filteredJobs = [];
+      state.latestJobs = [];
+      state.searchResults = [];
       state.currentJob = null;
-      state.pagination.total = 0;
-      state.pagination.page = 1;
+      state.pagination = initialState.pagination;
+      state.filters = initialState.filters;
+      state.isLoading = false;
+      state.error = null;
     },
   },
 });
@@ -172,15 +121,17 @@ export const {
   setError,
   clearError,
   setJobs,
+  addJobs,
   setCurrentJob,
-  addJob,
-  updateJob,
-  removeJob,
+  setLatestJobs,
+  setCategories,
+  setSearchResults,
+  clearSearchResults,
   setFilters,
   clearFilters,
-  applyFilters,
   setPage,
   setLimit,
+  setPagination,
   clearJobs,
 } = jobsSlice.actions;
 

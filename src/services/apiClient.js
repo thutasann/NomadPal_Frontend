@@ -77,13 +77,11 @@ const api = {
   // Jobs endpoints
   jobs: {
     getAll: (params) => apiClient.get('/jobs', { params }),
-    getById: (id) => apiClient.get(`/jobs/${id}`),
-    search: (query) => apiClient.get('/jobs/search', { params: { q: query } }),
-    getByCity: (cityId) => apiClient.get(`/jobs/city/${cityId}`),
-    getByCategory: (category) => apiClient.get(`/jobs/category/${category}`),
-    apply: (jobId, applicationData) => apiClient.post(`/jobs/${jobId}/apply`, applicationData),
-    save: (jobId) => apiClient.post(`/jobs/${jobId}/save`),
-    unsave: (jobId) => apiClient.delete(`/jobs/${jobId}/save`),
+    getLatest: (params) => apiClient.get('/jobs/latest', { params }),
+    getCategories: () => apiClient.get('/jobs/categories'),
+    getByCategory: (categorySlug, params) => apiClient.get(`/jobs/category/${categorySlug}`, { params }),
+    getByCompany: (companyName, params) => apiClient.get(`/jobs/company/${companyName}`, { params }),
+    search: (keywords, params) => apiClient.get(`/jobs/search/${keywords}`, { params }),
   },
 
   // Applications endpoints
