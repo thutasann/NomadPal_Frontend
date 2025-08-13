@@ -129,6 +129,7 @@ export default function Cities() {
     
     return sorted;
   }, [cities, q, climate, maxCost, sort]);
+  console.log('Filtered cities:', filtered);
 
   // Handle search input
   const handleSearch = (value) => {
