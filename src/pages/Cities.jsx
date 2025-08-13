@@ -114,7 +114,7 @@ export default function Cities() {
     const by = {
       "score-desc": (a, b) => (b.safety_score || 0) - (a.safety_score || 0),
       "cost-asc": (a, b) => (a.monthly_cost_usd || 0) - (b.monthly_cost_usd || 0),
-      "internet-desc": (a, b) => (b.internet_speed_requirement || 0) - (a.internet_speed_requirement || 0),
+      "internet-desc": (a, b) => (b.internet_speed || 0) - (a.internet_speed || 0),
       "safety-desc": (a, b) => (b.safety_score || 0) - (a.safety_score || 0),
     }[sort];
 

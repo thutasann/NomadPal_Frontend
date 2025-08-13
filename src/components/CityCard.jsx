@@ -62,7 +62,7 @@ export default function CityCard({ city }) {
       <div className="badges">
         <Badge label="Score" value={calculateScore()} />
         <Badge label="Cost" value={`$${city.monthly_cost_usd?.toLocaleString() || 'N/A'}`} />
-        <Badge label="Internet" value={city.internet_speed_requirement || 'N/A'} />
+        <Badge label="Internet" value={city.internet_speed || 'N/A'} />
         <Badge label="Safety" value={city.safety_score || 'N/A'} />
         <Badge label="Climate" value={city.climate_summary || 'N/A'} />
       </div>
