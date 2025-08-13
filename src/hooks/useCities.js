@@ -72,6 +72,33 @@ export const useCities = () => {
     }
   }, [dispatch]);
 
+  // Load a single city by slug
+  const loadCityBySlug = useCallback(async (slug) => {
+    try {
+      setIsLoading(true);
+      dispatch(setLoading(true));
+      
+      const response = await citiesService.getCityBySlug(slug);
+      const cityData = response.data;
+      
+      if (cityData) {
+        dispatch(setCurrentCity(cityData));
+        return cityData;
+      } else {
+        throw new Error('City not found');
+      }
+      
+    } catch (error) {
+      console.error('Error loading city by slug:', error);
+      dispatch(setError(error.message || 'Failed to load city'));
+      toast.error(error.message || 'Failed to load city');
+      throw error;
+    } finally {
+      setIsLoading(false);
+      dispatch(setLoading(false));
+    }
+  }, [dispatch]);
+
   // Load more cities for pagination
   const loadMoreCities = useCallback(async (page = 1, params = {}) => {
     try {
@@ -200,6 +227,7 @@ export const useCities = () => {
     isLoading: isLoading || cities.isLoading,
     error: cities.error,
     loadCities,
+    loadCityBySlug,
     loadMoreCities,
     searchCities,
     loadCitiesWithFilters,
