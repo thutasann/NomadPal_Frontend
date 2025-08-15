@@ -88,8 +88,8 @@ export default function CityCard({ city }) {
 
       <div className="badges">
         <Badge label="Score" value={calculateScore()} />
-        <Badge label="Cost" value={city.monthly_cost_usd ? `$${parseFloat(city.monthly_cost_usd).toLocaleString()}` : 'N/A'} />
-        <Badge label="Internet" value={city.internet_speed || 'N/A'} />
+        <Badge label="Monthly Cost" value={city.monthly_cost_usd ? `$${parseFloat(city.monthly_cost_usd).toLocaleString()}` : 'N/A'} />
+        <Badge label="Internet" value={city.internet_speed ? city.internet_speed.replace(' Mbps Mbps', ' Mbps') : 'N/A'} />
         <Badge label="Safety" value={city.safety_score ? Math.round(parseFloat(city.safety_score)) : 'N/A'} />
         <Badge label="Climate" value={city.climate_summary || 'N/A'} />
       </div>
