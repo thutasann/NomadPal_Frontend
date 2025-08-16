@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { toast } from "react-hot-toast";
 import CityCard from "../components/CityCard";
 import BudgetFilter from "../components/BudgetFilter";
@@ -30,25 +30,8 @@ export default function Cities() {
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
-  // Ref for scroll detection
-  const observerRef = useRef();
-  const lastCityRef = useCallback(node => {
-    if (isLoading || isLoadingMore) return;
-    
-    if (observerRef.current) observerRef.current.disconnect();
-    
-    observerRef.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore) {
-        handleLoadMore();
-      }
-    });
-    
-    if (node) observerRef.current.observe(node);
-  }, [isLoading, isLoadingMore, hasMore]);
-
   // Load cities when component mounts
   useEffect(() => {
     if (isAuthenticated) {
@@ -61,7 +44,6 @@ export default function Cities() {
             totalPages: responseData.pagination.total_pages,
             hasNext: responseData.pagination.has_next_page
           });
-          setHasMore(responseData.pagination.has_next_page || false);
         }
       });
     } else {
@@ -69,7 +51,6 @@ export default function Cities() {
       loadCities();
     }
     setCurrentPage(1);
-    setHasMore(true);
   }, [loadCities, loadPersonalizedCities, isAuthenticated]);
 
   // Clear errors when component unmounts
@@ -79,56 +60,51 @@ export default function Cities() {
     };
   }, [clearErrors]);
 
-  // Handle loading more cities
-  const handleLoadMore = async () => {
-    if (isLoadingMore || !hasMore) return;
+  // Handle page change
+  const handlePageChange = async (newPage) => {
+    if (isLoadingMore || newPage === currentPage) return;
     
     try {
       setIsLoadingMore(true);
-      const nextPage = currentPage + 1;
       
-      console.log('📄 Loading page', nextPage, '(authenticated:', isAuthenticated + ')');
+      console.log('📄 Loading page', newPage, '(authenticated:', isAuthenticated + ')');
       
       let success;
       let responseData;
+      
       if (isAuthenticated) {
-        // For personalized cities, load the next page
+        // For personalized cities, load the specific page
         responseData = await loadPersonalizedCities({ 
           limit: 25, 
-          page: nextPage 
+          page: newPage 
         });
         success = !!responseData;
-        console.log('✅ Personalized cities loaded page', nextPage, ':', {
+        console.log('✅ Personalized cities loaded page', newPage, ':', {
           success,
           cities: responseData?.cities?.length,
           hasNext: responseData?.pagination?.has_next_page
         });
       } else {
         // For general cities, use the loadMoreCities function
-        success = await loadMoreCities(nextPage);
+        success = await loadMoreCities(newPage);
         console.log('✅ General cities loaded:', success);
       }
       
       if (success) {
-        setCurrentPage(nextPage);
+        setCurrentPage(newPage);
         // For personalized cities, check the response data directly
         if (isAuthenticated && responseData) {
-          const newHasMore = responseData.pagination?.has_next_page || false;
-          setHasMore(newHasMore);
-          console.log('🔄 Updated pagination from response:', { nextPage, newHasMore });
+          console.log('🔄 Updated pagination from response:', { newPage });
         } else {
           // For general cities, check Redux state
-          const newHasMore = pagination?.has_next_page || false;
-          setHasMore(newHasMore);
-          console.log('🔄 Updated pagination from Redux:', { nextPage, newHasMore });
+          console.log('🔄 Updated pagination from Redux:', { newPage });
         }
       } else {
-        setHasMore(false);
         console.log('❌ No more cities available');
       }
     } catch (error) {
-      toast.error('Failed to load more cities');
-      console.error('Load more error:', error);
+      toast.error('Failed to load cities');
+      console.error('Load page error:', error);
     } finally {
       setIsLoadingMore(false);
     }
@@ -200,7 +176,6 @@ export default function Cities() {
   const handleRefresh = async () => {
     try {
       setCurrentPage(1);
-      setHasMore(true);
       
       if (isAuthenticated) {
         await loadPersonalizedCities({ limit: 100 });  // Use same limit as initial load
@@ -303,42 +278,42 @@ export default function Cities() {
           </div>
         ) : (
           <>
-                          {isAuthenticated ? (
-                <div style={{ 
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
-                  color: 'white', 
-                  padding: '15px 20px', 
-                  borderRadius: '8px', 
-                  marginBottom: '20px',
-                  textAlign: 'center'
-                }}>
-                  <p style={{ margin: 0, fontWeight: '500' }}>
-                    🎯 These cities are ranked based on your preferences
-                  </p>
-                  <p style={{ margin: '5px 0 0 0', fontSize: '0.9em', opacity: 0.9 }}>
-                    Higher scores indicate better matches for your budget, climate, and lifestyle preferences
-                  </p>
-                </div>
-              ) : (
-                <div style={{ 
-                  background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', 
-                  color: 'white', 
-                  padding: '15px 20px', 
-                  borderRadius: '8px', 
-                  marginBottom: '20px',
-                  textAlign: 'center'
-                }}>
-                  <p style={{ margin: 0, fontWeight: '500' }}>
-                    🔓 Get personalized recommendations
-                  </p>
-                  <p style={{ margin: '5px 0 0 0', fontSize: '0.9em', opacity: 0.9 }}>
-                    <a href="/login" style={{ color: 'white', textDecoration: 'underline' }}>Log in</a> to see cities ranked based on your preferences
-                  </p>
-                </div>
-              )}
+            {isAuthenticated ? (
+              <div style={{ 
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+                color: 'white', 
+                padding: '15px 20px', 
+                borderRadius: '8px', 
+                marginBottom: '20px',
+                textAlign: 'center'
+              }}>
+                <p style={{ margin: 0, fontWeight: '500' }}>
+                  🎯 These cities are ranked based on your preferences
+                </p>
+                <p style={{ margin: '5px 0 0 0', fontSize: '0.9em', opacity: 0.9 }}>
+                  Higher scores indicate better matches for your budget, climate, and lifestyle preferences
+                </p>
+              </div>
+            ) : (
+              <div style={{ 
+                background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', 
+                color: 'white', 
+                padding: '15px 20px', 
+                borderRadius: '8px', 
+                marginBottom: '20px',
+                textAlign: 'center'
+              }}>
+                <p style={{ margin: 0, fontWeight: '500' }}>
+                  🔓 Get personalized recommendations
+                </p>
+                <p style={{ margin: '5px 0 0 0', fontSize: '0.9em', opacity: 0.9 }}>
+                  <a href="/login" style={{ color: 'white', textDecoration: 'underline' }}>Log in</a> to see cities ranked based on your preferences
+                </p>
+              </div>
+            )}
             <div className="grid">
               {filtered.map((city, index) => (
-                <div key={city.id} ref={index === filtered.length - 1 ? lastCityRef : null}>
+                <div key={city.id}>
                   <CityCard city={city} />
                 </div>
               ))}
@@ -346,12 +321,88 @@ export default function Cities() {
           </>
         )}
 
-        {/* Loading more indicator */}
-        {isLoadingMore && (
-          <div style={{ textAlign: 'center', padding: '20px', marginTop: '20px' }}>
-            <p className="muted">
-              {isAuthenticated ? 'Loading more personalized recommendations...' : 'Loading more cities...'}
-            </p>
+        {/* Pagination */}
+        {filtered.length > 0 && pagination && pagination.total_pages > 1 && (
+          <div style={{ textAlign: 'center', marginTop: '30px' }}>
+            <div className="pagination" style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: '20px',
+              marginBottom: '20px'
+            }}>
+              <button 
+                className="btn small"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage <= 1 || isLoadingMore}
+                style={{
+                  opacity: (currentPage <= 1 || isLoadingMore) ? 0.5 : 1,
+                  cursor: (currentPage <= 1 || isLoadingMore) ? 'not-allowed' : 'pointer'
+                }}
+              >
+                ← Previous
+              </button>
+              
+              <span className="pagination-info" style={{
+                fontSize: '14px',
+                color: '#666',
+                fontWeight: '500',
+                minWidth: '120px'
+              }}>
+                Page {currentPage} of {pagination.total_pages}
+              </span>
+              
+              <button 
+                className="btn small"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage >= pagination.total_pages || isLoadingMore}
+                style={{
+                  opacity: (currentPage >= pagination.total_pages || isLoadingMore) ? 0.5 : 1,
+                  cursor: (currentPage >= pagination.total_pages || isLoadingMore) ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Next →
+              </button>
+            </div>
+            
+            {/* Page number input */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: '10px',
+              marginTop: '15px'
+            }}>
+              <span style={{ fontSize: '14px', color: '#666' }}>Go to page:</span>
+              <input
+                type="number"
+                min="1"
+                max={pagination.total_pages}
+                value={currentPage}
+                onChange={(e) => {
+                  const page = parseInt(e.target.value);
+                  if (page >= 1 && page <= pagination.total_pages) {
+                    handlePageChange(page);
+                  }
+                }}
+                style={{
+                  width: '60px',
+                  padding: '5px 8px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  textAlign: 'center',
+                  fontSize: '14px'
+                }}
+                disabled={isLoadingMore}
+              />
+              <span style={{ fontSize: '14px', color: '#666' }}>of {pagination.total_pages}</span>
+            </div>
+            
+            {isLoadingMore && (
+              <p className="muted" style={{ marginTop: '10px' }}>
+                Loading page {currentPage + 1}...
+              </p>
+            )}
           </div>
         )}
 
@@ -385,17 +436,8 @@ export default function Cities() {
             {/* Debug pagination info */}
             {isAuthenticated && pagination && (
               <p className="muted" style={{ marginTop: '5px', fontSize: '0.8em' }}>
-                Debug: hasMore={hasMore.toString()}, has_next_page={pagination.has_next_page?.toString()}, 
-                currentPage={currentPage}, totalPages={pagination.total_pages}
-              </p>
-            )}
-            
-            {!hasMore && filtered.length > 0 && (
-              <p className="muted" style={{ marginTop: '10px' }}>
-                {isAuthenticated 
-                  ? `You've seen all ${pagination?.total_items || cities.length} personalized recommendations`
-                  : "You've reached the end of all cities"
-                }
+                Debug: currentPage={currentPage}, totalPages={pagination.total_pages}, 
+                totalItems={pagination.total_items}
               </p>
             )}
           </div>
