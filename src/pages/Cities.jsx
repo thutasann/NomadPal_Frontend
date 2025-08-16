@@ -36,7 +36,7 @@ export default function Cities() {
   useEffect(() => {
     if (isAuthenticated) {
       // Load personalized cities for logged-in users
-      loadPersonalizedCities({ limit: 25 }).then(responseData => {
+      loadPersonalizedCities({ limit: 10 }).then(responseData => {
         if (responseData && responseData.pagination) {
           console.log('🎯 Initial personalized cities loaded:', {
             cities: responseData.cities?.length,
@@ -75,7 +75,7 @@ export default function Cities() {
       if (isAuthenticated) {
         // For personalized cities, load the specific page
         responseData = await loadPersonalizedCities({ 
-          limit: 25, 
+          limit: 10, 
           page: newPage 
         });
         success = !!responseData;
