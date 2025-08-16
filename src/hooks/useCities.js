@@ -48,28 +48,25 @@ export const useCities = () => {
 
   // Helper function to extract cities from API response
   const extractCitiesFromResponse = (response) => {
-    console.log('🔍 extractCitiesFromResponse called with:', response);
-    
     // Handle personalized cities response structure (from citiesService.getPersonalizedCities)
     if (response.cities && Array.isArray(response.cities)) {
-      console.log('✅ Extracting cities from response.cities:', response.cities.length);
+      console.log('✅ Extracting', response.cities.length, 'cities from response.cities');
       return response.cities;
     }
     
     // Handle the actual API response structure (from citiesService.getCities)
     if (response.data && response.data.cities) {
-      console.log('✅ Extracting cities from response.data.cities:', response.data.cities.length);
+      console.log('✅ Extracting', response.data.cities.length, 'cities from response.data.cities');
       return response.data.cities;
     }
     
     // Fallback for other response formats
     if (Array.isArray(response)) {
-      console.log('✅ Extracting cities from array response:', response.length);
+      console.log('✅ Extracting', response.length, 'cities from array response');
       return response;
     }
     
-    console.log('❌ No cities found in response, returning empty array');
-    console.log('Response keys:', Object.keys(response));
+    console.log('❌ No cities found in response, available keys:', Object.keys(response));
     return [];
   };
 
@@ -397,15 +394,14 @@ export const useCities = () => {
       dispatch(setLoading(true));
       
       const response = await citiesService.getPersonalizedCities(params);
-      console.log('🔍 Personalized cities response:', response);
-      console.log('🔍 Response structure:', {
-        hasData: !!response.data,
+      console.log('🔍 Personalized cities response:', {
         hasCities: !!response.cities,
+        citiesCount: response.cities?.length,
         hasPagination: !!response.pagination,
-        paginationKeys: response.pagination ? Object.keys(response.pagination) : 'none',
-        total: response.pagination?.total,
+        totalItems: response.pagination?.total_items,
         totalPages: response.pagination?.total_pages,
-        hasNextPage: response.pagination?.has_next_page
+        hasNextPage: response.pagination?.has_next_page,
+        currentPage: response.pagination?.current_page
       });
       
       const citiesData = extractCitiesFromResponse(response);
@@ -431,7 +427,8 @@ export const useCities = () => {
       
       return {
         cities: citiesData,
-        userPreferences: response.user_preferences
+        userPreferences: response.user_preferences,
+        pagination: response.pagination
       };
       
     } catch (error) {

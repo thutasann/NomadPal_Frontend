@@ -55,7 +55,12 @@ export default function Cities() {
       // Load personalized cities for logged-in users
       loadPersonalizedCities({ limit: 25 }).then(responseData => {
         if (responseData && responseData.pagination) {
-          console.log('🎯 Initial personalized cities loaded with pagination:', responseData.pagination);
+          console.log('🎯 Initial personalized cities loaded:', {
+            cities: responseData.cities?.length,
+            currentPage: responseData.pagination.current_page,
+            totalPages: responseData.pagination.total_pages,
+            hasNext: responseData.pagination.has_next_page
+          });
           setHasMore(responseData.pagination.has_next_page || false);
         }
       });
@@ -78,18 +83,11 @@ export default function Cities() {
   const handleLoadMore = async () => {
     if (isLoadingMore || !hasMore) return;
     
-    console.log('🔄 handleLoadMore called:', { 
-      isLoadingMore, 
-      hasMore, 
-      currentPage, 
-      pagination: pagination?.has_next_page 
-    });
-    
     try {
       setIsLoadingMore(true);
       const nextPage = currentPage + 1;
       
-      console.log('📄 Loading page:', nextPage, 'for authenticated user:', isAuthenticated);
+      console.log('📄 Loading page', nextPage, '(authenticated:', isAuthenticated + ')');
       
       let success;
       let responseData;
@@ -100,7 +98,11 @@ export default function Cities() {
           page: nextPage 
         });
         success = !!responseData;
-        console.log('✅ Personalized cities loaded:', success, responseData);
+        console.log('✅ Personalized cities loaded page', nextPage, ':', {
+          success,
+          cities: responseData?.cities?.length,
+          hasNext: responseData?.pagination?.has_next_page
+        });
       } else {
         // For general cities, use the loadMoreCities function
         success = await loadMoreCities(nextPage);
@@ -134,10 +136,7 @@ export default function Cities() {
 
   // Apply local filters to the cities from Redux
   const filtered = useMemo(() => {
-    console.log('Filtering cities:', { cities, citiesLength: cities?.length });
-    
     if (!cities || cities.length === 0) {
-      console.log('No cities to filter');
       return [];
     }
     
@@ -146,23 +145,17 @@ export default function Cities() {
       c.country.toLowerCase().includes(q.toLowerCase())
     );
     
-    console.log('After search filter:', list.length);
-    
     if (climate !== "any") {
       list = list.filter(c => c.climate_summary?.toLowerCase() === climate.toLowerCase());
-      console.log('After climate filter:', list.length);
     }
     
     // Budget filter - handle missing monthly_cost_usd field
-    const beforeBudgetFilter = list.length;
     list = list.filter(c => {
       if (c.monthly_cost_usd === undefined || c.monthly_cost_usd === null) {
-        console.log('City missing monthly_cost_usd:', c.name, c);
         return true; // Include cities without cost data for now
       }
       return c.monthly_cost_usd <= maxCost;
     });
-    console.log('After budget filter:', list.length, '(before:', beforeBudgetFilter, ')');
 
     const by = {
       "score-desc": (a, b) => (b.safety_score || 0) - (a.safety_score || 0),
@@ -172,17 +165,16 @@ export default function Cities() {
     }[sort];
 
     const sorted = [...list].sort(by);
-    console.log('Final filtered result:', sorted.length);
     
     // If no cities after filtering, return all cities (for debugging)
     if (sorted.length === 0 && cities.length > 0) {
-      console.log('No cities match filters, returning all cities for debugging');
+      console.log('⚠️ No cities match filters, showing all cities');
       return cities;
     }
     
+    console.log('🎯 Filtered to', sorted.length, 'cities from', cities.length, 'total');
     return sorted;
   }, [cities, q, climate, maxCost, sort]);
-  console.log('Filtered cities:', filtered);
 
   // Handle search input
   const handleSearch = (value) => {

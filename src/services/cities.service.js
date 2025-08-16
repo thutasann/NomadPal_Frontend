@@ -100,8 +100,9 @@ async function getSavedCities(params = {}) {
 async function getPersonalizedCities(params = {}) {
   try {
     const response = await apiClient.get('/cities/personalized', { params });
-    // The API returns { data: { cities: [...], pagination: {...}, user_preferences: {...} } }
-    return response.data;
+    // The API returns { success: true, message: "...", data: { cities: [...], pagination: {...}, user_preferences: {...} } }
+    // Extract the inner data object to flatten the structure
+    return response.data.data;
   } catch (error) {
     throw error.response?.data || error.message;
   }
