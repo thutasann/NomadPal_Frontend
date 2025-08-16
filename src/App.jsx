@@ -8,6 +8,7 @@ import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Logout from "./pages/Logout"; 
 import Cities from "./pages/Cities";
+import SavedCities from "./pages/SavedCities";
 import Register from "./pages/Register";
 import Footer from "./components/Footer"; 
 import Profile from "./pages/Profile";
@@ -62,6 +63,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/logout" element={<Logout />} />
         <Route path="/cities" element={<Cities />} />
+        <Route path="/saved-cities" element={<SavedCities />} />
         <Route path="/register" element={<Register />} /> 
         <Route path="/profile" element={<Profile />} /> 
         <Route path="/cities/:slug" element={<CityDetail />} />

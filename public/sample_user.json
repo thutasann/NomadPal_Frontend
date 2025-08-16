@@ -1,0 +1,30 @@
+{
+    "id": "fd00d327bc88db7f7ea507ec",
+    "email": "hsuyeywel@gmail.com",
+    "display_name": "hsuyeywel",
+    "created_at": "2025-08-13T04:29:39.000Z",
+    "preferred_language": "english",
+    "country_city": "Bristol",
+    "timezone": "UTC+00:00 (GMT)",
+    "passport": "1234",
+    "visa_flexibility": "Work visa required",
+    "preferred_regions": "SEA (Southeast Asia)",
+    "job_title": "Project Manager",
+    "target_salary_usd": null,
+    "salary_currency": "USD",
+    "sources": null,
+    "work_style": null,
+    "monthly_budget_min_usd": "1000.00",
+    "monthly_budget_max_usd": "1500.00",
+    "preferred_climate": "Temperate",
+    "internet_speed_requirement": "Medium",
+    "lifestyle_priorities": [
+        "Safety"
+    ],
+    "newsletter_consent": 1,
+    "research_consent": 1,
+    "saved_cities": [],
+    "saved_jobs": [],
+    "isLoading": false,
+    "error": null
+}

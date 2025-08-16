@@ -160,6 +160,7 @@ export default function Profile() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const { user, isLoading, loadProfile, updateProfile, removeCity, removeJob, loadSavedCities, loadSavedJobs } = useUser();
+  console.log("user :: ", user)
   
   // Track if data has been loaded to prevent infinite loops
   const [dataLoaded, setDataLoaded] = useState(false);

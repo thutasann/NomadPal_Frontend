@@ -98,17 +98,7 @@ const userSlice = createSlice({
       });
     },
     
-    // Saved cities management
-    addSavedCity: (state, action) => {
-      const cityId = action.payload;
-      if (!state.saved_cities.includes(cityId)) {
-        state.saved_cities.push(cityId);
-      }
-    },
-    removeSavedCity: (state, action) => {
-      const cityId = action.payload;
-      state.saved_cities = state.saved_cities.filter(id => id !== cityId);
-    },
+
     setSavedCities: (state, action) => {
       state.saved_cities = action.payload;
     },
@@ -148,8 +138,6 @@ export const {
   updateUserField,
   updateUserFields,
   clearUser,
-  addSavedCity,
-  removeSavedCity,
   setSavedCities,
   addSavedJob,
   removeSavedJob,

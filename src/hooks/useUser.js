@@ -3,8 +3,6 @@ import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { 
   setUserProfile, 
   updateUserFields, 
-  addSavedCity, 
-  removeSavedCity, 
   addSavedJob, 
   removeSavedJob, 
   updateSavedJobStatus,
@@ -91,35 +89,7 @@ export const useUser = () => {
     }
   }, [token]);
 
-  // Save city
-  const saveCity = useCallback(async (cityId) => {
-    if (!token) return;
-    
-    try {
-      await userService.saveCity(cityId);
-      dispatch(addSavedCity(cityId));
-      toast.success('City saved successfully');
-    } catch (error) {
-      console.error('Failed to save city:', error);
-      toast.error(error.message || 'Failed to save city');
-      throw error;
-    }
-  }, [token, dispatch]);
 
-  // Remove saved city
-  const removeCity = useCallback(async (cityId) => {
-    if (!token) return;
-    
-    try {
-      await userService.removeSavedCity(cityId);
-      dispatch(removeSavedCity(cityId));
-      toast.success('City removed from saved list');
-    } catch (error) {
-      console.error('Failed to remove city:', error);
-      toast.error(error.message || 'Failed to remove city');
-      throw error;
-    }
-  }, [token, dispatch]);
 
   // Load saved jobs
   const loadSavedJobs = useCallback(async () => {
@@ -193,8 +163,6 @@ export const useUser = () => {
     loadProfile,
     updateProfile,
     loadSavedCities,
-    saveCity,
-    removeCity,
     loadSavedJobs,
     saveJob,
     updateJobStatus,

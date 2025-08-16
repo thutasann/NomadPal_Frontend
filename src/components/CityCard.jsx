@@ -1,14 +1,17 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { useUser } from "../hooks/useUser";
+import { useCities } from "../hooks/useCities";
 import { toast } from "react-hot-toast";
+import { useState } from "react";
 
 export default function CityCard({ city }) {
   const { isAuthenticated } = useAuth();
-  const { user, saveCity, removeCity } = useUser();
+  const { toggleSaveCity } = useCities();
+  const [isLoading, setIsLoading] = useState(false);
+  const [localIsSaved, setLocalIsSaved] = useState(city.is_saved || false);
   
-  // Check if city is saved by looking at user's saved cities
-  const isSaved = user?.saved_cities?.some(savedCity => savedCity.id === city.id) || false;
+  // Use local state to track saved status
+  const isSaved = localIsSaved;
 
   const handleSaveToggle = async () => {
     if (!isAuthenticated) {
@@ -16,16 +19,34 @@ export default function CityCard({ city }) {
       return;
     }
 
+    if (isLoading) return;
+
     try {
-      if (isSaved) {
-        await removeCity(city.id);
-        toast.success(`${city.name} removed from saved cities`);
-      } else {
-        await saveCity(city.id);
-        toast.success(`${city.name} saved to your list`);
+      setIsLoading(true);
+      
+      // Use the cities service directly
+      const response = await toggleSaveCity(city.id);
+      
+      // Update local state immediately
+      setLocalIsSaved(response.is_saved);
+      
+      // Update the city object if it has is_saved property
+      if (city.is_saved !== undefined) {
+        city.is_saved = response.is_saved;
       }
+      
+      // Show success message
+      if (response.is_saved) {
+        toast.success(`${city.name} saved to your list`);
+      } else {
+        toast.success(`${city.name} removed from saved cities`);
+      }
+      
     } catch (error) {
-      toast.error('Failed to update saved cities');
+      console.error('Save city error:', error);
+      toast.error(error.message || 'Failed to update saved cities');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -101,8 +122,9 @@ export default function CityCard({ city }) {
         <button 
           className={`btn ${isSaved ? 'ghost' : 'primary'}`}
           onClick={handleSaveToggle}
+          disabled={isLoading || !isAuthenticated}
         >
-          {isSaved ? 'Saved' : 'Save'}
+          {isLoading ? 'Saving...' : (isSaved ? 'Saved' : 'Save')}
         </button>
       </div>
     </article>

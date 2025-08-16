@@ -75,6 +75,27 @@ async function getCitiesWithFilters(filters = {}) {
   }
 }
 
+// Save/unsave a city
+async function toggleSaveCity(cityId) {
+  try {
+    const response = await apiClient.post(`/cities/${cityId}/save`);
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error.message;
+  }
+}
+
+// Get user's saved cities
+async function getSavedCities(params = {}) {
+  try {
+    const response = await apiClient.get('/cities/saved', { params });
+    // The API returns { data: { cities: [...], pagination: {...} } }
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error.message;
+  }
+}
+
 const citiesService = {
   getCities,
   getCityById,
@@ -83,6 +104,8 @@ const citiesService = {
   getCitiesByCountry,
   getPopularCities,
   getCitiesWithFilters,
+  toggleSaveCity,
+  getSavedCities,
 };
 
 export default citiesService;

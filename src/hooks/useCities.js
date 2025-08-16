@@ -332,6 +332,44 @@ export const useCities = () => {
     dispatch(clearFilters());
   }, [dispatch]);
 
+  // Save/unsave city
+  const toggleSaveCity = useCallback(async (cityId) => {
+    try {
+      const response = await citiesService.toggleSaveCity(cityId);
+      return response.data;
+    } catch (error) {
+      console.error('Error toggling save city:', error);
+      throw error;
+    }
+  }, []);
+
+  // Load saved cities
+  const loadSavedCities = useCallback(async (params = {}) => {
+    try {
+      setIsLoading(true);
+      dispatch(setLoading(true));
+      
+      const response = await citiesService.getSavedCities(params);
+      const citiesData = extractCitiesFromResponse(response);
+      dispatch(setCities(citiesData));
+      
+      // Store pagination info in Redux
+      if (response.data && response.data.pagination) {
+        dispatch(setPagination(response.data.pagination));
+      }
+      
+      return citiesData;
+      
+    } catch (error) {
+      console.error('Error loading saved cities:', error);
+      dispatch(setError(error.message || 'Failed to load saved cities'));
+      throw error;
+    } finally {
+      setIsLoading(false);
+      dispatch(setLoading(false));
+    }
+  }, [dispatch]);
+
   // Cache management functions
   const clearAllCache = useCallback(() => {
     memoryCache.allCities = { data: null, timestamp: null, params: null };
@@ -388,6 +426,9 @@ export const useCities = () => {
     clearErrors,
     clearAllCities,
     clearAllFilters,
+    // Save functionality
+    toggleSaveCity,
+    loadSavedCities,
     // Cache management
     clearAllCache,
     refreshCities,

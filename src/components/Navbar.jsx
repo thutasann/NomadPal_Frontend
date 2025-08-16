@@ -21,6 +21,7 @@ export default function Navbar() {
           <Link to="/cities">Cities</Link>
           {isAuthenticated ? (
             <>
+              <Link to="/saved-cities">Saved Cities</Link>
               <Link to="/profile">Profile</Link>
               <button 
                 className="btn small ghost" 

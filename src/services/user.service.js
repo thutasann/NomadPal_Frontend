@@ -30,26 +30,6 @@ async function getSavedCities() {
   }
 }
 
-// Save city
-async function saveCity(cityId) {
-  try {
-    const response = await apiClient.post('/users/saved-cities', { city_id: cityId });
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
-// Remove saved city
-async function removeSavedCity(cityId) {
-  try {
-    const response = await apiClient.delete(`/users/saved-cities/${cityId}`);
-    return response.data;
-  } catch (error) {
-    throw error.response?.data || error.message;
-  }
-}
-
 // Get saved jobs
 async function getSavedJobs() {
   try {
@@ -94,8 +74,6 @@ const userService = {
   getProfile,
   updateProfile,
   getSavedCities,
-  saveCity,
-  removeSavedCity,
   getSavedJobs,
   saveJob,
   updateSavedJobStatus,
