@@ -30,10 +30,8 @@ export default function CityCard({ city }) {
       // Update local state immediately
       setLocalIsSaved(response.is_saved);
       
-      // Update the city object if it has is_saved property
-      if (city.is_saved !== undefined) {
-        city.is_saved = response.is_saved;
-      }
+      // Don't try to modify the city object directly as it's read-only
+      // The local state will handle the UI updates
       
       // Show success message
       if (response.is_saved) {
