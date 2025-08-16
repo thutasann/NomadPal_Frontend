@@ -48,26 +48,28 @@ export const useCities = () => {
 
   // Helper function to extract cities from API response
   const extractCitiesFromResponse = (response) => {
-    console.log('API Response:', response); // Added debug log
+    console.log('🔍 extractCitiesFromResponse called with:', response);
     
-    // Handle the actual API response structure
+    // Handle personalized cities response structure (from citiesService.getPersonalizedCities)
+    if (response.cities && Array.isArray(response.cities)) {
+      console.log('✅ Extracting cities from response.cities:', response.cities.length);
+      return response.cities;
+    }
+    
+    // Handle the actual API response structure (from citiesService.getCities)
     if (response.data && response.data.cities) {
-      console.log('Extracting cities from response.data.cities:', response.data.cities.length); // Added debug log
+      console.log('✅ Extracting cities from response.data.cities:', response.data.cities.length);
       return response.data.cities;
     }
     
     // Fallback for other response formats
-    if (response.cities) {
-      console.log('Extracting cities from response.cities:', response.cities.length); // Added debug log
-      return response.cities;
-    }
-    
     if (Array.isArray(response)) {
-      console.log('Extracting cities from array response:', response.length); // Added debug log
+      console.log('✅ Extracting cities from array response:', response.length);
       return response;
     }
     
-    console.log('No cities found in response, returning empty array'); // Added debug log
+    console.log('❌ No cities found in response, returning empty array');
+    console.log('Response keys:', Object.keys(response));
     return [];
   };
 
@@ -395,6 +397,17 @@ export const useCities = () => {
       dispatch(setLoading(true));
       
       const response = await citiesService.getPersonalizedCities(params);
+      console.log('🔍 Personalized cities response:', response);
+      console.log('🔍 Response structure:', {
+        hasData: !!response.data,
+        hasCities: !!response.cities,
+        hasPagination: !!response.pagination,
+        paginationKeys: response.pagination ? Object.keys(response.pagination) : 'none',
+        total: response.pagination?.total,
+        totalPages: response.pagination?.total_pages,
+        hasNextPage: response.pagination?.has_next_page
+      });
+      
       const citiesData = extractCitiesFromResponse(response);
       
       // Cache the data in memory
@@ -402,20 +415,23 @@ export const useCities = () => {
         data: citiesData,
         timestamp: Date.now(),
         params: params,
-        pagination: response.data?.pagination,
-        userPreferences: response.data?.user_preferences
+        pagination: response.pagination,
+        userPreferences: response.user_preferences
       };
       
       dispatch(setCities(citiesData));
       
       // Store pagination info in Redux
-      if (response.data && response.data.pagination) {
-        dispatch(setPagination(response.data.pagination));
+      if (response.pagination) {
+        console.log('✅ Setting pagination in Redux:', response.pagination);
+        dispatch(setPagination(response.pagination));
+      } else {
+        console.log('❌ No pagination data in response');
       }
       
       return {
         cities: citiesData,
-        userPreferences: response.data.user_preferences
+        userPreferences: response.user_preferences
       };
       
     } catch (error) {
@@ -437,22 +453,19 @@ export const useCities = () => {
       const response = await citiesService.getPersonalizedCities(newParams);
       const newCitiesData = extractCitiesFromResponse(response);
       
-      // Append new cities to existing ones
-      const existingCities = memoryCache.personalizedCities.data || [];
-      const allCities = [...existingCities, ...newCitiesData];
-      
-      // Update cache with combined data
+      // For personalized cities, we need to replace the data, not append
+      // because each page contains different cities based on ranking
       memoryCache.personalizedCities = {
-        data: allCities,
+        data: newCitiesData,  // Replace with new page data
         timestamp: Date.now(),
         params: newParams,
-        pagination: response.data?.pagination,
-        userPreferences: response.data?.user_preferences
+        pagination: response.pagination,
+        userPreferences: response.user_preferences
       };
       
-      dispatch(setCities(allCities));
-      if (response.data?.pagination) {
-        dispatch(setPagination(response.data.pagination));
+      dispatch(setCities(newCitiesData));  // Replace cities in Redux
+      if (response.pagination) {
+        dispatch(setPagination(response.pagination));
       }
       
       return true;

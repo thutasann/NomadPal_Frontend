@@ -53,8 +53,12 @@ export default function Cities() {
   useEffect(() => {
     if (isAuthenticated) {
       // Load personalized cities for logged-in users
-      loadPersonalizedCities();
-      toast.success('Loading personalized recommendations...');
+      loadPersonalizedCities({ limit: 25 }).then(responseData => {
+        if (responseData && responseData.pagination) {
+          console.log('🎯 Initial personalized cities loaded with pagination:', responseData.pagination);
+          setHasMore(responseData.pagination.has_next_page || false);
+        }
+      });
     } else {
       // Load general cities for non-logged-in users
       loadCities();
@@ -74,25 +78,55 @@ export default function Cities() {
   const handleLoadMore = async () => {
     if (isLoadingMore || !hasMore) return;
     
+    console.log('🔄 handleLoadMore called:', { 
+      isLoadingMore, 
+      hasMore, 
+      currentPage, 
+      pagination: pagination?.has_next_page 
+    });
+    
     try {
       setIsLoadingMore(true);
       const nextPage = currentPage + 1;
       
+      console.log('📄 Loading page:', nextPage, 'for authenticated user:', isAuthenticated);
+      
       let success;
+      let responseData;
       if (isAuthenticated) {
-        success = await loadMorePersonalizedCities(nextPage);
+        // For personalized cities, load the next page
+        responseData = await loadPersonalizedCities({ 
+          limit: 25, 
+          page: nextPage 
+        });
+        success = !!responseData;
+        console.log('✅ Personalized cities loaded:', success, responseData);
       } else {
+        // For general cities, use the loadMoreCities function
         success = await loadMoreCities(nextPage);
+        console.log('✅ General cities loaded:', success);
       }
       
       if (success) {
         setCurrentPage(nextPage);
-        setHasMore(pagination?.has_next_page || false);
+        // For personalized cities, check the response data directly
+        if (isAuthenticated && responseData) {
+          const newHasMore = responseData.pagination?.has_next_page || false;
+          setHasMore(newHasMore);
+          console.log('🔄 Updated pagination from response:', { nextPage, newHasMore });
+        } else {
+          // For general cities, check Redux state
+          const newHasMore = pagination?.has_next_page || false;
+          setHasMore(newHasMore);
+          console.log('🔄 Updated pagination from Redux:', { nextPage, newHasMore });
+        }
       } else {
         setHasMore(false);
+        console.log('❌ No more cities available');
       }
     } catch (error) {
       toast.error('Failed to load more cities');
+      console.error('Load more error:', error);
     } finally {
       setIsLoadingMore(false);
     }
@@ -177,7 +211,7 @@ export default function Cities() {
       setHasMore(true);
       
       if (isAuthenticated) {
-        await loadPersonalizedCities();
+        await loadPersonalizedCities({ limit: 100 });  // Use same limit as initial load
         toast.success('Personalized recommendations refreshed successfully');
       } else {
         await loadCities();
@@ -323,7 +357,9 @@ export default function Cities() {
         {/* Loading more indicator */}
         {isLoadingMore && (
           <div style={{ textAlign: 'center', padding: '20px', marginTop: '20px' }}>
-            <p className="muted">Loading more cities...</p>
+            <p className="muted">
+              {isAuthenticated ? 'Loading more personalized recommendations...' : 'Loading more cities...'}
+            </p>
           </div>
         )}
 
@@ -333,9 +369,9 @@ export default function Cities() {
             <p className="muted">
               {isAuthenticated ? (
                 <>
-                  Showing {filtered.length} personalized recommendations
+                  Showing {filtered.length} of {pagination?.total_items || cities.length} personalized recommendations
                   {pagination && (
-                    <span> • Based on your preferences</span>
+                    <span> • Page {currentPage} of {pagination.total_pages} • Total: {pagination.total_items} cities</span>
                   )}
                 </>
               ) : (
@@ -353,10 +389,19 @@ export default function Cities() {
                 );
               })()}
             </p>
+            
+            {/* Debug pagination info */}
+            {isAuthenticated && pagination && (
+              <p className="muted" style={{ marginTop: '5px', fontSize: '0.8em' }}>
+                Debug: hasMore={hasMore.toString()}, has_next_page={pagination.has_next_page?.toString()}, 
+                currentPage={currentPage}, totalPages={pagination.total_pages}
+              </p>
+            )}
+            
             {!hasMore && filtered.length > 0 && (
               <p className="muted" style={{ marginTop: '10px' }}>
                 {isAuthenticated 
-                  ? "You've seen all your personalized recommendations"
+                  ? `You've seen all ${pagination?.total_items || cities.length} personalized recommendations`
                   : "You've reached the end of all cities"
                 }
               </p>
