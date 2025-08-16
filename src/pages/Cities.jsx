@@ -13,7 +13,9 @@ export default function Cities() {
     loadCities,
     loadMoreCities,
     clearAllFilters,
-    clearErrors
+    clearErrors,
+    refreshCities,
+    getCacheInfo
   } = useCities();
 
   // Local state for search and filters
@@ -263,6 +265,12 @@ export default function Cities() {
               {pagination && (
                 <span> • Page {currentPage} of {pagination.total_pages}</span>
               )}
+              {(() => {
+                const cacheInfo = getCacheInfo();
+                return cacheInfo.allCities.hasData && cacheInfo.allCities.isValid && (
+                  <span> • Cached {new Date(cacheInfo.allCities.timestamp).toLocaleTimeString()}</span>
+                );
+              })()}
             </p>
             {!hasMore && filtered.length > 0 && (
               <p className="muted" style={{ marginTop: '10px' }}>

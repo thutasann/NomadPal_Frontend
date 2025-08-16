@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { 
   setCities, 
@@ -16,6 +16,29 @@ import {
 } from '../store/slices/citiesSlice';
 import citiesService from '../services/cities.service';
 import { toast } from 'react-hot-toast';
+
+// In-memory cache configuration
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Global cache object (shared across all hook instances)
+const memoryCache = {
+  allCities: { data: null, timestamp: null, params: null },
+  citiesById: {},
+  searchResults: {},
+  filteredResults: {},
+  citiesByCountry: {},
+  popularCities: { data: null, timestamp: null }
+};
+
+// Helper functions
+const isCacheValid = (timestamp) => {
+  if (!timestamp) return false;
+  return Date.now() - timestamp < CACHE_DURATION;
+};
+
+const generateCacheKey = (params) => {
+  return JSON.stringify(params || {});
+};
 
 export const useCities = () => {
   const dispatch = useAppDispatch();
@@ -47,14 +70,44 @@ export const useCities = () => {
     return [];
   };
 
-  // Load all cities
-  const loadCities = useCallback(async (params = {}) => {
+  // Load all cities with in-memory cache
+  const loadCities = useCallback(async (params = {}, forceRefresh = false) => {
     try {
+      const cacheKey = generateCacheKey(params);
+      
+      // Check cache first unless force refresh is requested
+      if (!forceRefresh && memoryCache.allCities.data && 
+          isCacheValid(memoryCache.allCities.timestamp) &&
+          generateCacheKey(memoryCache.allCities.params) === cacheKey) {
+        console.log('🚀 Loading cities from memory cache:', memoryCache.allCities.data.length);
+        dispatch(setCities(memoryCache.allCities.data));
+        return memoryCache.allCities.data;
+      }
+      
       setIsLoading(true);
       dispatch(setLoading(true));
       
       const response = await citiesService.getCities(params);
       const citiesData = extractCitiesFromResponse(response);
+      
+      // Cache the data in memory
+      memoryCache.allCities = {
+        data: citiesData,
+        timestamp: Date.now(),
+        params: params
+      };
+      
+      // Also cache individual cities by ID and slug
+      citiesData.forEach(city => {
+        const timestamp = Date.now();
+        if (city.id) {
+          memoryCache.citiesById[city.id] = { data: city, timestamp };
+        }
+        if (city.slug) {
+          memoryCache.citiesById[city.slug] = { data: city, timestamp };
+        }
+      });
+      
       dispatch(setCities(citiesData));
       
       // Store pagination info in Redux
@@ -62,19 +115,30 @@ export const useCities = () => {
         dispatch(setPagination(response.data.pagination));
       }
       
+      return citiesData;
+      
     } catch (error) {
       console.error('Error loading cities:', error);
       dispatch(setError(error.message || 'Failed to load cities'));
       toast.error(error.message || 'Failed to load cities');
+      throw error;
     } finally {
       setIsLoading(false);
       dispatch(setLoading(false));
     }
   }, [dispatch]);
 
-  // Load a single city by slug
-  const loadCityBySlug = useCallback(async (slug) => {
+  // Load a single city by slug with cache
+  const loadCityBySlug = useCallback(async (slug, forceRefresh = false) => {
     try {
+      // Check cache first unless force refresh is requested
+      if (!forceRefresh && memoryCache.citiesById[slug] && 
+          isCacheValid(memoryCache.citiesById[slug].timestamp)) {
+        console.log('🚀 Loading city from memory cache:', slug);
+        dispatch(setCurrentCity(memoryCache.citiesById[slug].data));
+        return memoryCache.citiesById[slug].data;
+      }
+      
       setIsLoading(true);
       dispatch(setLoading(true));
       
@@ -82,6 +146,15 @@ export const useCities = () => {
       const cityData = response.data;
       
       if (cityData) {
+        // Cache the city data
+        const timestamp = Date.now();
+        if (cityData.id) {
+          memoryCache.citiesById[cityData.id] = { data: cityData, timestamp };
+        }
+        if (cityData.slug) {
+          memoryCache.citiesById[cityData.slug] = { data: cityData, timestamp };
+        }
+        
         dispatch(setCurrentCity(cityData));
         return cityData;
       } else {
@@ -126,40 +199,78 @@ export const useCities = () => {
     }
   }, [dispatch]);
 
-  // Search cities
-  const searchCities = useCallback(async (query, params = {}) => {
+  // Search cities with cache
+  const searchCities = useCallback(async (query, params = {}, forceRefresh = false) => {
     try {
+      const cacheKey = generateCacheKey({ query, ...params });
+      
+      // Check cache first unless force refresh is requested
+      if (!forceRefresh && memoryCache.searchResults[cacheKey] && 
+          isCacheValid(memoryCache.searchResults[cacheKey].timestamp)) {
+        console.log('🚀 Loading search results from memory cache:', query);
+        dispatch(setCities(memoryCache.searchResults[cacheKey].data));
+        return memoryCache.searchResults[cacheKey].data;
+      }
+      
       setIsLoading(true);
       dispatch(setLoading(true));
       
       const response = await citiesService.searchCities(query, params);
       const citiesData = extractCitiesFromResponse(response);
+      
+      // Cache the search results
+      memoryCache.searchResults[cacheKey] = {
+        data: citiesData,
+        timestamp: Date.now()
+      };
+      
       dispatch(setCities(citiesData));
+      return citiesData;
       
     } catch (error) {
       console.error('Error searching cities:', error);
       dispatch(setError(error.message || 'Failed to search cities'));
       toast.error(error.message || 'Failed to search cities');
+      throw error;
     } finally {
       setIsLoading(false);
       dispatch(setLoading(false));
     }
   }, [dispatch]);
 
-  // Load cities with filters
-  const loadCitiesWithFilters = useCallback(async (filters = {}) => {
+  // Load cities with filters and cache
+  const loadCitiesWithFilters = useCallback(async (filters = {}, forceRefresh = false) => {
     try {
+      const cacheKey = generateCacheKey(filters);
+      
+      // Check cache first unless force refresh is requested
+      if (!forceRefresh && memoryCache.filteredResults[cacheKey] && 
+          isCacheValid(memoryCache.filteredResults[cacheKey].timestamp)) {
+        console.log('🚀 Loading filtered results from memory cache:', filters);
+        dispatch(setCities(memoryCache.filteredResults[cacheKey].data));
+        return memoryCache.filteredResults[cacheKey].data;
+      }
+      
       setIsLoading(true);
       dispatch(setLoading(true));
       
       const response = await citiesService.getCitiesWithFilters(filters);
       const citiesData = extractCitiesFromResponse(response);
+      
+      // Cache the filtered results
+      memoryCache.filteredResults[cacheKey] = {
+        data: citiesData,
+        timestamp: Date.now()
+      };
+      
       dispatch(setCities(citiesData));
+      return citiesData;
       
     } catch (error) {
       console.error('Error loading cities with filters:', error);
       dispatch(setError(error.message || 'Failed to load cities with filters'));
       toast.error(error.message || 'Failed to load cities with filters');
+      throw error;
     } finally {
       setIsLoading(false);
       dispatch(setLoading(false));
@@ -221,6 +332,47 @@ export const useCities = () => {
     dispatch(clearFilters());
   }, [dispatch]);
 
+  // Cache management functions
+  const clearAllCache = useCallback(() => {
+    memoryCache.allCities = { data: null, timestamp: null, params: null };
+    memoryCache.citiesById = {};
+    memoryCache.searchResults = {};
+    memoryCache.filteredResults = {};
+    memoryCache.citiesByCountry = {};
+    memoryCache.popularCities = { data: null, timestamp: null };
+    console.log('🗑️ All memory cache cleared');
+  }, []);
+
+  const refreshCities = useCallback(async (params = {}) => {
+    return await loadCities(params, true); // Force refresh
+  }, [loadCities]);
+
+  const refreshCity = useCallback(async (slug) => {
+    return await loadCityBySlug(slug, true); // Force refresh
+  }, [loadCityBySlug]);
+
+  // Get cache info for debugging
+  const getCacheInfo = useCallback(() => {
+    return {
+      allCities: {
+        hasData: !!memoryCache.allCities.data,
+        count: memoryCache.allCities.data?.length || 0,
+        timestamp: memoryCache.allCities.timestamp,
+        isValid: isCacheValid(memoryCache.allCities.timestamp)
+      },
+      citiesById: Object.keys(memoryCache.citiesById).length,
+      searchResults: Object.keys(memoryCache.searchResults).length,
+      filteredResults: Object.keys(memoryCache.filteredResults).length,
+      citiesByCountry: Object.keys(memoryCache.citiesByCountry).length,
+      popularCities: {
+        hasData: !!memoryCache.popularCities.data,
+        count: memoryCache.popularCities.data?.length || 0,
+        timestamp: memoryCache.popularCities.timestamp,
+        isValid: isCacheValid(memoryCache.popularCities.timestamp)
+      }
+    };
+  }, []);
+
   return {
     cities: cities.cities || [],
     pagination: cities.pagination,
@@ -236,5 +388,10 @@ export const useCities = () => {
     clearErrors,
     clearAllCities,
     clearAllFilters,
+    // Cache management
+    clearAllCache,
+    refreshCities,
+    refreshCity,
+    getCacheInfo
   };
 };
