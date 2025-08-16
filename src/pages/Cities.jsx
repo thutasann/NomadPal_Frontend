@@ -3,8 +3,10 @@ import { toast } from "react-hot-toast";
 import CityCard from "../components/CityCard";
 import BudgetFilter from "../components/BudgetFilter";
 import { useCities } from "../hooks/useCities";
+import { useAuth } from "../hooks/useAuth";
 
 export default function Cities() {
+  const { isAuthenticated } = useAuth();
   const {
     cities,
     pagination,
@@ -12,6 +14,8 @@ export default function Cities() {
     error,
     loadCities,
     loadMoreCities,
+    loadPersonalizedCities,
+    loadMorePersonalizedCities,
     clearAllFilters,
     clearErrors,
     refreshCities,
@@ -47,10 +51,17 @@ export default function Cities() {
 
   // Load cities when component mounts
   useEffect(() => {
-    loadCities();
+    if (isAuthenticated) {
+      // Load personalized cities for logged-in users
+      loadPersonalizedCities();
+      toast.success('Loading personalized recommendations...');
+    } else {
+      // Load general cities for non-logged-in users
+      loadCities();
+    }
     setCurrentPage(1);
     setHasMore(true);
-  }, [loadCities]);
+  }, [loadCities, loadPersonalizedCities, isAuthenticated]);
 
   // Clear errors when component unmounts
   useEffect(() => {
@@ -66,7 +77,13 @@ export default function Cities() {
     try {
       setIsLoadingMore(true);
       const nextPage = currentPage + 1;
-      const success = await loadMoreCities(nextPage);
+      
+      let success;
+      if (isAuthenticated) {
+        success = await loadMorePersonalizedCities(nextPage);
+      } else {
+        success = await loadMoreCities(nextPage);
+      }
       
       if (success) {
         setCurrentPage(nextPage);
@@ -158,8 +175,14 @@ export default function Cities() {
     try {
       setCurrentPage(1);
       setHasMore(true);
-      await loadCities();
-      toast.success('Cities refreshed successfully');
+      
+      if (isAuthenticated) {
+        await loadPersonalizedCities();
+        toast.success('Personalized recommendations refreshed successfully');
+      } else {
+        await loadCities();
+        toast.success('Cities refreshed successfully');
+      }
     } catch (error) {
       toast.error('Failed to refresh cities');
     }
@@ -188,14 +211,24 @@ export default function Cities() {
         <header className="page-head">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h1>Cities</h1>
-              <p className="subtitle">Compare cost, internet, safety, and climate.</p>
+              <h1>{isAuthenticated ? 'Personalized Cities' : 'Cities'}</h1>
+              <p className="subtitle">
+                {isAuthenticated 
+                  ? 'Your personalized recommendations based on preferences.' 
+                  : 'Compare cost, internet, safety, and climate.'
+                }
+              </p>
+              {isAuthenticated && (
+                <p className="muted" style={{ marginTop: '5px', fontSize: '0.9em' }}>
+                  Based on your budget, climate preferences, and lifestyle priorities
+                </p>
+              )}
             </div>
             <button 
               className="btn small" 
               onClick={handleRefresh}
               disabled={isLoading}
-              title="Refresh cities data"
+              title={isAuthenticated ? "Refresh personalized recommendations" : "Refresh cities data"}
             >
               {isLoading ? 'Refreshing...' : '🔄 Refresh'}
             </button>
@@ -231,7 +264,9 @@ export default function Cities() {
         {/* Results */}
         {isLoading ? (
           <div style={{ textAlign: 'center', padding: '50px 20px' }}>
-            <p className="muted">Loading cities…</p>
+            <p className="muted">
+              {isAuthenticated ? 'Loading personalized recommendations…' : 'Loading cities…'}
+            </p>
           </div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '50px 20px' }}>
@@ -241,13 +276,48 @@ export default function Cities() {
             </button>
           </div>
         ) : (
-          <div className="grid">
-            {filtered.map((city, index) => (
-              <div key={city.id} ref={index === filtered.length - 1 ? lastCityRef : null}>
-                <CityCard city={city} />
-              </div>
-            ))}
-          </div>
+          <>
+                          {isAuthenticated ? (
+                <div style={{ 
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+                  color: 'white', 
+                  padding: '15px 20px', 
+                  borderRadius: '8px', 
+                  marginBottom: '20px',
+                  textAlign: 'center'
+                }}>
+                  <p style={{ margin: 0, fontWeight: '500' }}>
+                    🎯 These cities are ranked based on your preferences
+                  </p>
+                  <p style={{ margin: '5px 0 0 0', fontSize: '0.9em', opacity: 0.9 }}>
+                    Higher scores indicate better matches for your budget, climate, and lifestyle preferences
+                  </p>
+                </div>
+              ) : (
+                <div style={{ 
+                  background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', 
+                  color: 'white', 
+                  padding: '15px 20px', 
+                  borderRadius: '8px', 
+                  marginBottom: '20px',
+                  textAlign: 'center'
+                }}>
+                  <p style={{ margin: 0, fontWeight: '500' }}>
+                    🔓 Get personalized recommendations
+                  </p>
+                  <p style={{ margin: '5px 0 0 0', fontSize: '0.9em', opacity: 0.9 }}>
+                    <a href="/login" style={{ color: 'white', textDecoration: 'underline' }}>Log in</a> to see cities ranked based on your preferences
+                  </p>
+                </div>
+              )}
+            <div className="grid">
+              {filtered.map((city, index) => (
+                <div key={city.id} ref={index === filtered.length - 1 ? lastCityRef : null}>
+                  <CityCard city={city} />
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
         {/* Loading more indicator */}
@@ -261,9 +331,20 @@ export default function Cities() {
         {filtered.length > 0 && (
           <div style={{ textAlign: 'center', marginTop: '20px' }}>
             <p className="muted">
-              Showing {filtered.length} of {pagination?.total_items || cities.length} cities
-              {pagination && (
-                <span> • Page {currentPage} of {pagination.total_pages}</span>
+              {isAuthenticated ? (
+                <>
+                  Showing {filtered.length} personalized recommendations
+                  {pagination && (
+                    <span> • Based on your preferences</span>
+                  )}
+                </>
+              ) : (
+                <>
+                  Showing {filtered.length} of {pagination?.total_items || cities.length} cities
+                  {pagination && (
+                    <span> • Page {currentPage} of {pagination.total_pages}</span>
+                  )}
+                </>
               )}
               {(() => {
                 const cacheInfo = getCacheInfo();
@@ -274,7 +355,10 @@ export default function Cities() {
             </p>
             {!hasMore && filtered.length > 0 && (
               <p className="muted" style={{ marginTop: '10px' }}>
-                You've reached the end of all cities
+                {isAuthenticated 
+                  ? "You've seen all your personalized recommendations"
+                  : "You've reached the end of all cities"
+                }
               </p>
             )}
           </div>

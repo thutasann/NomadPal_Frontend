@@ -96,6 +96,17 @@ async function getSavedCities(params = {}) {
   }
 }
 
+// Get personalized city recommendations based on user preferences
+async function getPersonalizedCities(params = {}) {
+  try {
+    const response = await apiClient.get('/cities/personalized', { params });
+    // The API returns { data: { cities: [...], pagination: {...}, user_preferences: {...} } }
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error.message;
+  }
+}
+
 const citiesService = {
   getCities,
   getCityById,
@@ -106,6 +117,7 @@ const citiesService = {
   getCitiesWithFilters,
   toggleSaveCity,
   getSavedCities,
+  getPersonalizedCities
 };
 
 export default citiesService;

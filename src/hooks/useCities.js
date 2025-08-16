@@ -27,7 +27,8 @@ const memoryCache = {
   searchResults: {},
   filteredResults: {},
   citiesByCountry: {},
-  popularCities: { data: null, timestamp: null }
+  popularCities: { data: null, timestamp: null },
+  personalizedCities: { data: null, timestamp: null, params: null }
 };
 
 // Helper functions
@@ -370,6 +371,98 @@ export const useCities = () => {
     }
   }, [dispatch]);
 
+  // Load personalized city recommendations
+  const loadPersonalizedCities = useCallback(async (params = {}, forceRefresh = false) => {
+    try {
+      const cacheKey = generateCacheKey(params);
+      
+      // Check cache first unless force refresh is requested
+      if (!forceRefresh && memoryCache.personalizedCities.data && 
+          isCacheValid(memoryCache.personalizedCities.timestamp) &&
+          generateCacheKey(memoryCache.personalizedCities.params) === cacheKey) {
+        console.log('🚀 Loading personalized cities from memory cache:', memoryCache.personalizedCities.data.length);
+        dispatch(setCities(memoryCache.personalizedCities.data));
+        if (memoryCache.personalizedCities.pagination) {
+          dispatch(setPagination(memoryCache.personalizedCities.pagination));
+        }
+        return {
+          cities: memoryCache.personalizedCities.data,
+          userPreferences: memoryCache.personalizedCities.userPreferences
+        };
+      }
+      
+      setIsLoading(true);
+      dispatch(setLoading(true));
+      
+      const response = await citiesService.getPersonalizedCities(params);
+      const citiesData = extractCitiesFromResponse(response);
+      
+      // Cache the data in memory
+      memoryCache.personalizedCities = {
+        data: citiesData,
+        timestamp: Date.now(),
+        params: params,
+        pagination: response.data?.pagination,
+        userPreferences: response.data?.user_preferences
+      };
+      
+      dispatch(setCities(citiesData));
+      
+      // Store pagination info in Redux
+      if (response.data && response.data.pagination) {
+        dispatch(setPagination(response.data.pagination));
+      }
+      
+      return {
+        cities: citiesData,
+        userPreferences: response.data.user_preferences
+      };
+      
+    } catch (error) {
+      console.error('Error loading personalized cities:', error);
+      dispatch(setError(error.message || 'Failed to load personalized cities'));
+      throw error;
+    } finally {
+      setIsLoading(false);
+      dispatch(setLoading(false));
+    }
+  }, [dispatch]);
+
+  // Load more personalized cities (for pagination)
+  const loadMorePersonalizedCities = useCallback(async (page) => {
+    try {
+      const currentParams = memoryCache.personalizedCities.params || {};
+      const newParams = { ...currentParams, page };
+      
+      const response = await citiesService.getPersonalizedCities(newParams);
+      const newCitiesData = extractCitiesFromResponse(response);
+      
+      // Append new cities to existing ones
+      const existingCities = memoryCache.personalizedCities.data || [];
+      const allCities = [...existingCities, ...newCitiesData];
+      
+      // Update cache with combined data
+      memoryCache.personalizedCities = {
+        data: allCities,
+        timestamp: Date.now(),
+        params: newParams,
+        pagination: response.data?.pagination,
+        userPreferences: response.data?.user_preferences
+      };
+      
+      dispatch(setCities(allCities));
+      if (response.data?.pagination) {
+        dispatch(setPagination(response.data.pagination));
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error loading more personalized cities:', error);
+      dispatch(setError(error.message || 'Failed to load more personalized cities'));
+      return false;
+    }
+  }, [dispatch]);
+
   // Cache management functions
   const clearAllCache = useCallback(() => {
     memoryCache.allCities = { data: null, timestamp: null, params: null };
@@ -378,6 +471,7 @@ export const useCities = () => {
     memoryCache.filteredResults = {};
     memoryCache.citiesByCountry = {};
     memoryCache.popularCities = { data: null, timestamp: null };
+    memoryCache.personalizedCities = { data: null, timestamp: null, params: null };
     console.log('🗑️ All memory cache cleared');
   }, []);
 
@@ -407,6 +501,12 @@ export const useCities = () => {
         count: memoryCache.popularCities.data?.length || 0,
         timestamp: memoryCache.popularCities.timestamp,
         isValid: isCacheValid(memoryCache.popularCities.timestamp)
+      },
+      personalizedCities: {
+        hasData: !!memoryCache.personalizedCities.data,
+        count: memoryCache.personalizedCities.data?.length || 0,
+        timestamp: memoryCache.personalizedCities.timestamp,
+        isValid: isCacheValid(memoryCache.personalizedCities.timestamp)
       }
     };
   }, []);
@@ -429,6 +529,8 @@ export const useCities = () => {
     // Save functionality
     toggleSaveCity,
     loadSavedCities,
+    loadPersonalizedCities,
+    loadMorePersonalizedCities,
     // Cache management
     clearAllCache,
     refreshCities,
