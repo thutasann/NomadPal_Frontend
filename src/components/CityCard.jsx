@@ -101,7 +101,7 @@ export default function CityCard({ city }) {
   return (
     <article className="card">
       <header className="card-head">
-        <h3>{city.name} {city.ml_enhanced && <span className="ml-badge" title="ML Enhanced">🤖</span>}</h3>
+        <h3>{city.name}</h3>
         <span className="country">{city.country}</span>
       </header>
 
